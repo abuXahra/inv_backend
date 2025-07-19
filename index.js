@@ -27,7 +27,7 @@ const corsOptions = {
   origin: [
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://inventory-management-system-xcvp.onrender.com/",
+    "https://inventory-management-system-xcvp.onrender.com",
   ],
   credentials: true,
 };
