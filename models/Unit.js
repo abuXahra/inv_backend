@@ -4,16 +4,16 @@ const UnitSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
     },
     note: {
       type: String,
-      require: true,
+      required: true,
     },
     status: {
       type: String,
-      require: true,
+      required: true,
       enum: ["ON", "OFF"],
       default: "ON",
     },

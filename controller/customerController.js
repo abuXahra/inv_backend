@@ -96,7 +96,6 @@ exports.customerDelete = async (req, res) => {
   }
 };
 
-// bulk delete
 // BULK DELETE Customers
 exports.bulkDeleteCustomers = async (req, res) => {
   try {

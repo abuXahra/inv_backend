@@ -18,6 +18,8 @@ const expenseRoute = require("./routes/expense");
 const categoryRoute = require("./routes/category");
 const customerRoute = require("./routes/customer");
 const supplierRoute = require("./routes/supplier");
+const productRoute = require("./routes/product");
+const purchaseRoute = require("./routes/purchase");
 
 const port = process.env.PORT || 5000;
 
@@ -43,6 +45,8 @@ app.use("/api/expense", expenseRoute);
 app.use("/api/category", categoryRoute);
 app.use("/api/customers", customerRoute);
 app.use("/api/suppliers", supplierRoute);
+app.use("/api/products", productRoute);
+app.use("/api/purchase", purchaseRoute);
 
 // Image upload route
 const storage = multer.diskStorage({

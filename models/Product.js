@@ -7,68 +7,110 @@ const ProductSchema = new mongoose.Schema(
       required: true,
     },
     category: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
       required: true,
+    },
+    code: {
+      type: String,
       unique: true,
     },
-    unit: String,
-    sku: String,
-    quantityAlert: {
+    unit: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Unit",
+      required: true,
+    },
+    sku: {
       type: String,
+    },
+    quantityAlert: {
+      type: Number,
       required: true,
     },
     description: {
       type: String,
       required: true,
     },
-
-    imgUrl: String,
-
-    // purchase info
-    price: {
+    imgUrl: {
       type: String,
+    },
+
+    // Purchase Info
+    price: {
+      type: Number,
       required: true,
     },
 
     tax: {
-      type: String,
+      type: Number, // percentage, e.g., 5, 7, etc.
+      required: true,
+    },
+
+    taxAmount: {
+      type: Number, // percentage, e.g., 5, 7, etc.
+      required: true,
+    },
+
+    unitCost: {
+      type: Number, // percentage, e.g., 5, 7, etc.
+      required: true,
     },
 
     purchasePrice: {
-      type: String,
+      type: Number,
       required: true,
     },
 
-    // sale info
+    // Sale Info
     taxType: {
-      type: String,
+      type: String, // e.g., Inclusive or Non Inclusive
+      enum: ["Inclusive", "Non Inclusive"],
+      required: true,
     },
-
     profitMargin: {
-      type: String,
+      type: Number,
     },
-
-    sellingPrice: {
-      type: String,
+    salePrice: {
+      type: Number,
       required: true,
     },
 
-    sellingPrice: {
-      type: String,
+    quantity: {
+      type: Number,
       required: true,
     },
 
-    OpenStock: {
-      type: String,
-      require: true,
+    purchaseQuantity: {
+      type: Number,
+      default: 0, // ✅ ensures it starts at 0
+    },
+
+    saleQuantity: {
+      type: Number,
+      default: 0, // ✅ ensures it starts at 0
     },
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["ON", "OFF"],
+      default: "ON",
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+// Virtual field for stockQuantity
+ProductSchema.virtual("stockQuantity").get(function () {
+  return (this.purchaseQuantity || 0) - (this.saleQuantity || 0);
+});
 
 module.exports = mongoose.model("Product", ProductSchema);

@@ -9,7 +9,11 @@ const TaxSchema = new mongoose.Schema(
     },
     taxPercentage: {
       type: Number,
-      require: true,
+      required: true, // ✅ fixed spelling
+      validate: {
+        validator: Number.isInteger, // ✅ enforce integer
+        message: "{VALUE} is not an integer value",
+      },
     },
     status: {
       type: String,

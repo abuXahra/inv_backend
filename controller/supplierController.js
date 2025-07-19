@@ -3,42 +3,6 @@ const Supplier = require("../models/Supplier");
 // register supplier
 exports.registerSupplier = async (req, res) => {
   try {
-    const { name, email, phoneNumber, taxNumber, address, imgUrl, userId } =
-      req.body;
-
-    // Check for existing entries
-    const [existingEmail] = await Promise.all([Supplier.findOne({ email })]);
-
-    if (existingEmail) {
-      return res.status(400).json({
-        message: "Supplier already exists. Use another email.",
-      });
-    }
-
-    // Create  instance
-    const newSupplier = new Supplier({
-      name,
-      email,
-      phoneNumber,
-      taxNumber,
-      address,
-      imgUrl,
-      userId,
-    });
-
-    const savedSupplier = await newSupplier.save();
-    res.status(200).json({
-      message: "Supplier saved successfully",
-      savedSupplier,
-    });
-  } catch (error) {
-    res.status(500).json({ message: `Internal server error ${error}`, error });
-  }
-};
-
-// register supplier
-exports.registerSupplierB = async (req, res) => {
-  try {
     const {
       name,
       email,
