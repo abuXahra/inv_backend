@@ -24,7 +24,11 @@ const purchaseRoute = require("./routes/purchase");
 const port = process.env.PORT || 5000;
 
 const corsOptions = {
-  origin: ["http://localhost:3000", "http://localhost:3001"],
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://inv-backend-sda6.onrender.com",
+  ],
   credentials: true,
 };
 
