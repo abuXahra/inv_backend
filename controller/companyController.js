@@ -25,7 +25,7 @@ exports.companyRegister = async (req, res) => {
       customer,
       sale,
       expense,
-      // userId,
+      userId,
     } = req.body;
 
     // Check for existing entries
@@ -72,7 +72,7 @@ exports.companyRegister = async (req, res) => {
           expense,
         },
       ],
-      // userId,
+      userId,
     });
 
     const savedCompany = await newCompany.save();
@@ -109,11 +109,81 @@ exports.fetchAllCompany = async (req, res) => {
 };
 
 //Update company profile
+// exports.companyUpdate = async (req, res) => {
+//   try {
+//     const updatedCompany = await Company.findByIdAndUpdate(
+//       req.params.companyId,
+//       { $set: req.body },
+//       { new: true }
+//     );
+//     res.status(200).json(updatedCompany);
+//   } catch (err) {
+//     res.status(500).json(err);
+//   }
+// };
+
 exports.companyUpdate = async (req, res) => {
   try {
+    const {
+      companyName,
+      tagLine,
+      businessType,
+      ownersName,
+      mobileNumber,
+      phoneNumber,
+      faxNumber,
+      taxNumber,
+      companyEmail,
+      currencyCode,
+      currencySymbol,
+      address,
+      companyLogo,
+      category,
+      product,
+      supply,
+      purchase,
+      customer,
+      sale,
+      expense,
+      userId,
+    } = req.body;
+
+    const companyId = req.params.companyId;
+
+    if (!companyId) {
+      return res.status(400).json({ message: "Invalid company ID" });
+    }
+
     const updatedCompany = await Company.findByIdAndUpdate(
       req.params.companyId,
-      { $set: req.body },
+      {
+        companyName,
+        tagLine,
+        businessType,
+        ownersName,
+        mobileNumber,
+        phoneNumber,
+        faxNumber,
+        taxNumber,
+        companyEmail,
+        currencyCode,
+        currencySymbol,
+        address,
+        companyLogo,
+        prefixes: [
+          {
+            category,
+            product,
+            supply,
+            purchase,
+            customer,
+            sale,
+            expense,
+          },
+        ],
+        userId,
+      },
+
       { new: true }
     );
     res.status(200).json(updatedCompany);
@@ -121,7 +191,6 @@ exports.companyUpdate = async (req, res) => {
     res.status(500).json(err);
   }
 };
-
 // delete company
 exports.deleteCompany = async (req, res) => {
   try {

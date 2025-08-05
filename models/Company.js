@@ -69,10 +69,11 @@ const CompanySchema = new mongoose.Schema(
     },
     companyLogo: String,
     prefixes: [PrefixSchema],
-    // userId: {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Category",
-    // },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   { timestamps: true }
 );
