@@ -61,7 +61,7 @@ const SaleSchema = new mongoose.Schema(
     },
     reference: {
       type: String,
-      required: true,
+      required: false,
     },
 
     // payment info
@@ -77,9 +77,17 @@ const SaleSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    amountPaid: {
+      type: Number,
+      default: 0,
+    },
+    dueBalance: {
+      type: Number,
+      default: 0,
+    },
     note: {
       type: String,
-      required: true,
+      required: false,
     },
     subTotal: {
       type: Number,
@@ -111,4 +119,4 @@ const SaleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Sale", PurchaseSchema);
+module.exports = mongoose.model("Sale", SaleSchema);

@@ -61,7 +61,7 @@ const PurchaseSchema = new mongoose.Schema(
     },
     reference: {
       type: String,
-      required: true,
+      required: false,
     },
 
     // payment info
@@ -79,7 +79,7 @@ const PurchaseSchema = new mongoose.Schema(
     },
     note: {
       type: String,
-      required: true,
+      required: false,
     },
     subTotal: {
       type: Number,
