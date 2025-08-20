@@ -113,7 +113,15 @@ exports.saleRegister = async (req, res) => {
 // fetch sale data
 exports.fetchSale = async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.saleId);
+    const sale = await Sale.findById(req.params.saleId)
+      .populate({
+        path: "userId",
+        select: "username",
+      })
+      .populate({
+        path: "customer",
+        select: "name",
+      });
     if (!sale) {
       return res.status(400).json({ message: "sale not found" });
     }
@@ -281,5 +289,22 @@ exports.bulkDeleteSale = async (req, res) => {
   } catch (error) {
     console.error("Bulk delete error:", error);
     res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+// ===============================
+// Get all unpaid or partial sales
+// ===============================
+exports.getPayableSales = async (req, res) => {
+  try {
+    const payableSales = await Sale.find({
+      paymentStatus: { $in: ["Unpaid", "Partial"] },
+    }).select("code customerName saleAmount paymentStatus");
+
+    res.status(200).json(payableSales);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Error fetching payable sales", error: err.message });
   }
 };

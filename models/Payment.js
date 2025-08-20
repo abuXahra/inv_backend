@@ -7,29 +7,24 @@ const PaymentSchema = new mongoose.Schema(
       required: true,
     },
     paymentFor: {
-      type: String,
+      type: String, // Example: SA1001 (Sale) or PU1001 (Purchase)
       required: true,
-    },
-    code: {
-      type: String,
-      required: true,
-      unique: true,
     },
     invoiceNo: {
-      type: String,
+      type: String, // Will be auto-filled with paymentFor code
       required: true,
-      unique: true,
     },
-    dueAmount: {
-      type: String,
+    dueBalance: {
+      type: Number, // Comes from Sale/Purchase dueBalance
+      required: true,
+    },
+    payableAmount: {
+      type: Number, // How much user is paying now
       required: true,
     },
     paymentType: {
       type: String,
-      required: true,
-    },
-    payableAmount: {
-      type: Number,
+      enum: ["Cash", "Bank Transfer", "POS", "Cheque", "Other"],
       required: true,
     },
     note: {

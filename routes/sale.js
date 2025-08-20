@@ -20,4 +20,6 @@ router.get("/:saleId", saleController.fetchSale);
 // delete router
 router.delete("/:saleId", saleController.deleteSale);
 
+router.get("/payable", saleController.getPayableSales);
+
 module.exports = router;

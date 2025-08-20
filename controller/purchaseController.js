@@ -13,6 +13,8 @@ exports.purchaseRegister = async (req, res) => {
       purchaseAmount,
       paymentType,
       paymentStatus,
+      amountPaid,
+      dueBalance,
       note,
       subTotal,
       otherCharges,
@@ -66,6 +68,8 @@ exports.purchaseRegister = async (req, res) => {
       purchaseAmount,
       paymentType,
       paymentStatus,
+      amountPaid,
+      dueBalance,
       note,
       subTotal,
       otherCharges,
@@ -108,7 +112,15 @@ exports.purchaseRegister = async (req, res) => {
 // fetch Purchase data
 exports.fetchPurchase = async (req, res) => {
   try {
-    const purchase = await Purchase.findById(req.params.purchaseId);
+    const purchase = await Purchase.findById(req.params.purchaseId)
+      .populate({
+        path: "userId",
+        select: "username",
+      })
+      .populate({
+        path: "supplier",
+        select: "name",
+      });
     if (!purchase) {
       return res.status(400).json({ message: "Purchase not found" });
     }
@@ -161,6 +173,8 @@ exports.purchaseUpdate = async (req, res) => {
       purchaseAmount,
       paymentType,
       paymentStatus,
+      amountPaid,
+      dueBalance,
       note,
       subTotal,
       otherCharges,
@@ -216,6 +230,8 @@ exports.purchaseUpdate = async (req, res) => {
         purchaseAmount,
         paymentType,
         paymentStatus,
+        amountPaid,
+        dueBalance,
         note,
         subTotal,
         otherCharges,
