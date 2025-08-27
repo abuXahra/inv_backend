@@ -81,6 +81,19 @@ exports.saleRegister = async (req, res) => {
       saleItems: cleanedItems,
     });
 
+    // Enforce dueBalance & amountPaid rules
+    if (paymentStatus === "unpaid") {
+      newSale.amountPaid = 0;
+      newSale.dueBalance = newSale.saleAmount;
+    } else if (paymentStatus === "paid") {
+      newSale.amountPaid = newSale.saleAmount;
+      newSale.dueBalance = 0;
+    } else if (paymentStatus === "partial") {
+      if (!newSale.amountPaid) {
+        newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
+      }
+    }
+
     await newSale.save();
 
     // loop through the sale Items and increase the product sale quantity accordingly
@@ -151,6 +164,7 @@ exports.fetchAllSale = async (req, res) => {
 
 // Update Sale
 exports.saleUpdate = async (req, res) => {
+  const saleId = req.params.saleId;
   try {
     const {
       saleDate,
@@ -169,11 +183,8 @@ exports.saleUpdate = async (req, res) => {
       discountValue,
       shipping,
       saleItems = [],
-      prefix,
       userId,
     } = req.body;
-
-    const saleId = req.params.saleId;
 
     if (!mongoose.Types.ObjectId.isValid(saleId)) {
       return res.status(400).json({ message: "Invalid sale ID" });
@@ -207,32 +218,49 @@ exports.saleUpdate = async (req, res) => {
       amount: Number(item.amount),
     }));
 
-    // 4️⃣ Update the sale
-    const updatedSale = await Sale.findByIdAndUpdate(
-      saleId,
-      {
-        saleDate,
-        customer,
-        saleStatus,
-        reference,
-        saleAmount,
-        paymentType,
-        paymentStatus,
-        amountPaid,
-        dueBalance,
-        note,
-        subTotal,
-        otherCharges,
-        discount,
-        discountValue,
-        shipping,
-        saleItems: cleanedItems,
-        userId,
-      },
-      { new: true }
-    );
+    // 4️⃣ Prepare updated sale object
+    const updateData = {
+      saleDate,
+      customer,
+      saleStatus,
+      reference,
+      saleAmount,
+      paymentType,
+      paymentStatus,
+      amountPaid,
+      dueBalance,
+      note,
+      subTotal,
+      otherCharges,
+      discount,
+      discountValue,
+      shipping,
+      saleItems: cleanedItems,
+      userId,
+    };
 
-    // 5️⃣ Add the new sale quantities
+    // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
+    if (paymentStatus === "unpaid") {
+      updateData.amountPaid = 0;
+      updateData.dueBalance = saleAmount;
+    } else if (paymentStatus === "paid") {
+      updateData.amountPaid = saleAmount;
+      updateData.dueBalance = 0;
+    } else if (paymentStatus === "partial") {
+      if (!amountPaid || amountPaid <= 0) {
+        updateData.amountPaid = 0;
+        updateData.dueBalance = saleAmount;
+      } else {
+        updateData.dueBalance = saleAmount - amountPaid;
+      }
+    }
+
+    // 6️⃣ Update the sale
+    const updatedSale = await Sale.findByIdAndUpdate(saleId, updateData, {
+      new: true,
+    });
+
+    // 7️⃣ Add the new sale quantities
     for (const item of cleanedItems) {
       if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
 

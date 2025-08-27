@@ -18,44 +18,61 @@ exports.registerPayment = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    let invoiceNo = paymentFor; // same as entered code
+    let invoiceNo = paymentFor;
     let dueBalance = 0;
 
-    // Check if it's for Sale or Purchase
+    // SALE PAYMENT
     if (paymentFor.startsWith("SA")) {
       const sale = await Sale.findOne({ code: paymentFor });
       if (!sale) return res.status(404).json({ message: "Sale not found" });
 
-      dueBalance = sale.dueBalance;
-
-      // Deduct payment from sale
+      // Update sale payments
       sale.amountPaid += payableAmount;
       sale.dueBalance = sale.saleAmount - sale.amountPaid;
+
+      // ✅ update payment type
+      sale.paymentType = paymentType;
+
       if (sale.dueBalance <= 0) {
         sale.paymentStatus = "paid";
         sale.dueBalance = 0;
+      } else if (sale.amountPaid > 0 && sale.dueBalance > 0) {
+        sale.paymentStatus = "partial";
+      } else {
+        sale.paymentStatus = "unpaid";
       }
+
       await sale.save();
+      dueBalance = sale.dueBalance;
+
+      // PURCHASE PAYMENT
     } else if (paymentFor.startsWith("PU")) {
       const purchase = await Purchase.findOne({ code: paymentFor });
       if (!purchase)
         return res.status(404).json({ message: "Purchase not found" });
 
-      dueAmount = purchase.dueBalance;
-
-      // Deduct payment from purchase
       purchase.amountPaid += payableAmount;
       purchase.dueBalance = purchase.purchaseAmount - purchase.amountPaid;
+
+      // ✅ update payment type
+      purchase.paymentType = paymentType;
+
       if (purchase.dueBalance <= 0) {
         purchase.paymentStatus = "paid";
         purchase.dueBalance = 0;
+      } else if (purchase.amountPaid > 0 && purchase.dueBalance > 0) {
+        purchase.paymentStatus = "partial";
+      } else {
+        purchase.paymentStatus = "unpaid";
       }
+
       await purchase.save();
+      dueBalance = purchase.dueBalance;
     } else {
       return res.status(400).json({ message: "Invalid paymentFor code" });
     }
 
-    // Create Payment record
+    // Create Payment record (save updated dueBalance)
     const newPayment = new Payment({
       paymentDate,
       paymentFor,
@@ -97,6 +114,103 @@ exports.getPayment = async (req, res) => {
     if (!payment) return res.status(404).json({ message: "Payment not found" });
     res.status(200).json(payment);
   } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Update Payment
+exports.updatePayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      paymentDate,
+      paymentFor,
+      payableAmount,
+      paymentType,
+      note,
+      userId,
+    } = req.body;
+
+    const payment = await Payment.findById(id);
+    if (!payment) return res.status(404).json({ message: "Payment not found" });
+
+    let invoiceNo = paymentFor || payment.paymentFor;
+    let dueBalance = 0;
+
+    // Calculate adjustment (difference between new and old payableAmount)
+    const oldAmount = payment.payableAmount;
+    const amountDiff = payableAmount - oldAmount;
+
+    // --- SALE PAYMENT ---
+    if (invoiceNo.startsWith("SA")) {
+      const sale = await Sale.findOne({ code: invoiceNo });
+      if (!sale) return res.status(404).json({ message: "Sale not found" });
+
+      // Rollback old payment first
+      sale.amountPaid -= oldAmount;
+
+      // Apply new payment
+      sale.amountPaid += payableAmount;
+      sale.dueBalance = sale.saleAmount - sale.amountPaid;
+
+      if (sale.dueBalance <= 0) {
+        sale.paymentStatus = "paid";
+        sale.dueBalance = 0;
+      } else if (sale.amountPaid > 0 && sale.dueBalance > 0) {
+        sale.paymentStatus = "partial";
+      } else {
+        sale.paymentStatus = "unpaid";
+      }
+
+      await sale.save();
+      dueBalance = sale.dueBalance;
+
+      // --- PURCHASE PAYMENT ---
+    } else if (invoiceNo.startsWith("PU")) {
+      const purchase = await Purchase.findOne({ code: invoiceNo });
+      if (!purchase)
+        return res.status(404).json({ message: "Purchase not found" });
+
+      // Rollback old payment first
+      purchase.amountPaid -= oldAmount;
+
+      // Apply new payment
+      purchase.amountPaid += payableAmount;
+      purchase.dueBalance = purchase.purchaseAmount - purchase.amountPaid;
+
+      if (purchase.dueBalance <= 0) {
+        purchase.paymentStatus = "paid";
+        purchase.dueBalance = 0;
+      } else if (purchase.amountPaid > 0 && purchase.dueBalance > 0) {
+        purchase.paymentStatus = "partial";
+      } else {
+        purchase.paymentStatus = "unpaid";
+      }
+
+      await purchase.save();
+      dueBalance = purchase.dueBalance;
+    } else {
+      return res.status(400).json({ message: "Invalid paymentFor code" });
+    }
+
+    // --- Update Payment record itself ---
+    payment.paymentDate = paymentDate || payment.paymentDate;
+    payment.paymentFor = invoiceNo;
+    payment.invoiceNo = invoiceNo;
+    payment.dueBalance = dueBalance;
+    payment.payableAmount = payableAmount;
+    payment.paymentType = paymentType || payment.paymentType;
+    payment.note = note || payment.note;
+    payment.userId = userId || payment.userId;
+
+    await payment.save();
+
+    res.status(200).json({
+      message: "Payment updated successfully",
+      payment,
+    });
+  } catch (error) {
+    console.error("Update Payment Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -80,6 +80,20 @@ exports.purchaseRegister = async (req, res) => {
       purchaseItems: cleanedItems,
     });
 
+    // Enforce dueBalance & amountPaid rules
+    if (paymentStatus === "unpaid") {
+      newPurchase.amountPaid = 0;
+      newPurchase.dueBalance = newPurchase.saleAmount;
+    } else if (paymentStatus === "paid") {
+      newPurchase.amountPaid = newPurchase.saleAmount;
+      newPurchase.dueBalance = 0;
+    } else if (paymentStatus === "partial") {
+      if (!newPurchase.amountPaid) {
+        newPurchase.dueBalance =
+          newPurchase.saleAmount - newPurchase.amountPaid;
+      }
+    }
+
     await newPurchase.save();
 
     // loop through the purchase Items and increase the product purchase quantity accordingly
@@ -164,6 +178,7 @@ exports.fetchAllPurchase = async (req, res) => {
 
 // Update Purchase
 exports.purchaseUpdate = async (req, res) => {
+  const purchaseId = req.params.purchaseId;
   try {
     const {
       purchaseDate,
@@ -184,8 +199,6 @@ exports.purchaseUpdate = async (req, res) => {
       purchaseItems = [],
       userId,
     } = req.body;
-
-    const purchaseId = req.params.purchaseId;
 
     if (!mongoose.Types.ObjectId.isValid(purchaseId)) {
       return res.status(400).json({ message: "Invalid purchase ID" });
@@ -220,28 +233,49 @@ exports.purchaseUpdate = async (req, res) => {
     }));
 
     // 4️⃣ Update the purchase
-    const updatedPurchase = await Purchase.findByIdAndUpdate(
+    const updateData = {
+      purchaseDate,
+      supplier,
+      purchaseStatus,
+      reference,
+      purchaseAmount,
+      paymentType,
+      paymentStatus,
+      amountPaid,
+      dueBalance,
+      note,
+      subTotal,
+      otherCharges,
+      discount,
+      discountValue,
+      shipping,
+      purchaseItems: cleanedItems,
+      userId,
+    };
+
+    // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
+    if (paymentStatus === "unpaid") {
+      updateData.amountPaid = 0;
+      updateData.dueBalance = saleAmount;
+    } else if (paymentStatus === "paid") {
+      updateData.amountPaid = saleAmount;
+      updateData.dueBalance = 0;
+    } else if (paymentStatus === "partial") {
+      if (!amountPaid || amountPaid <= 0) {
+        updateData.amountPaid = 0;
+        updateData.dueBalance = saleAmount;
+      } else {
+        updateData.dueBalance = saleAmount - amountPaid;
+      }
+    }
+
+    // 6️⃣ Update the sale
+    const updatedPurchase = await Sale.findByIdAndUpdate(
       purchaseId,
+      updateData,
       {
-        purchaseDate,
-        supplier,
-        purchaseStatus,
-        reference,
-        purchaseAmount,
-        paymentType,
-        paymentStatus,
-        amountPaid,
-        dueBalance,
-        note,
-        subTotal,
-        otherCharges,
-        discount,
-        discountValue,
-        shipping,
-        purchaseItems: cleanedItems,
-        userId,
-      },
-      { new: true }
+        new: true,
+      }
     );
 
     // 5️⃣ Add the new quantities

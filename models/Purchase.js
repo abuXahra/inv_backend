@@ -57,11 +57,11 @@ const PurchaseSchema = new mongoose.Schema(
     },
     purchaseStatus: {
       type: String,
-      required: true,
+      enum: ["pending", "completed"],
+      default: "pending",
     },
     reference: {
       type: String,
-      required: false,
     },
 
     // payment info
@@ -75,7 +75,8 @@ const PurchaseSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      required: true,
+      enum: ["unpaid", "partial", "paid"],
+      default: "unpaid",
     },
     amountPaid: {
       type: Number,
@@ -83,7 +84,9 @@ const PurchaseSchema = new mongoose.Schema(
     },
     dueBalance: {
       type: Number,
-      default: 0,
+      default: function () {
+        return this.purchaseAmount; // initially full amount is due
+      },
     },
     note: {
       type: String,
@@ -118,5 +121,17 @@ const PurchaseSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+/**
+ * Virtual: isFullyPaid
+ * Returns true if the sale is completely paid off
+ */
+PurchaseSchema.virtual("isFullyPaid").get(function () {
+  return this.dueBalance <= 0 && this.paymentStatus === "paid";
+});
+
+// Ensure virtuals are included when converting to JSON
+PurchaseSchema.set("toJSON", { virtuals: true });
+PurchaseSchema.set("toObject", { virtuals: true });
 
 module.exports = mongoose.model("Purchase", PurchaseSchema);

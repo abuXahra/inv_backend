@@ -21,11 +21,13 @@ const supplierRoute = require("./routes/supplier");
 const productRoute = require("./routes/product");
 const purchaseRoute = require("./routes/purchase");
 const saleRoute = require("./routes/sale");
+const paymentRoute = require("./routes/payment");
 
 const port = process.env.PORT || 5000;
 
 const corsOptions = {
   origin: [
+    "https://inventory.jewelszenithgalore.com.ng/",
     "https://inventory-management-system-xcvp.onrender.com",
     "http://localhost:3000",
     "http://localhost:3001",
@@ -53,6 +55,7 @@ app.use("/api/suppliers", supplierRoute);
 app.use("/api/products", productRoute);
 app.use("/api/purchase", purchaseRoute);
 app.use("/api/sale", saleRoute);
+app.use("/api/payment", paymentRoute);
 
 // Image upload route
 const storage = multer.diskStorage({
