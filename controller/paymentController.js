@@ -97,7 +97,7 @@ exports.registerPayment = async (req, res) => {
 // Fetch All Payments
 exports.getPayments = async (req, res) => {
   try {
-    const payments = await Payment.find().populate("userId", "name email");
+    const payments = await Payment.find();
     res.status(200).json(payments);
   } catch (error) {
     res.status(500).json({ message: "Internal server error" });
@@ -216,12 +216,193 @@ exports.updatePayment = async (req, res) => {
 };
 
 // Delete Payment
+// exports.deletePayment = async (req, res) => {
+//   try {
+//     const paymentId = req.params.paymentId;
+
+//     const payment = await Payment.findByIdAndDelete(paymentId);
+//     if (!payment) return res.status(404).json({ message: "Payment not found" });
+//     res.status(200).json({ message: "Payment deleted successfully" });
+//   } catch (error) {
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// };
+
 exports.deletePayment = async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndDelete(req.params.id);
+    const paymentId = req.params.paymentId;
+
+    const payment = await Payment.findById(paymentId);
     if (!payment) return res.status(404).json({ message: "Payment not found" });
-    res.status(200).json({ message: "Payment deleted successfully" });
+
+    const { paymentFor, payableAmount } = payment;
+
+    // If payment was for a SALE
+    if (paymentFor.startsWith("SA")) {
+      const sale = await Sale.findOne({ code: paymentFor });
+      if (sale) {
+        // Roll back payment
+        sale.amountPaid -= payableAmount;
+        if (sale.amountPaid < 0) sale.amountPaid = 0;
+
+        sale.dueBalance = sale.saleAmount - sale.amountPaid;
+
+        if (sale.dueBalance <= 0) {
+          sale.paymentStatus = "paid";
+          sale.dueBalance = 0;
+        } else if (sale.amountPaid > 0) {
+          sale.paymentStatus = "partial";
+        } else {
+          sale.paymentStatus = "unpaid";
+        }
+
+        await sale.save();
+      }
+    }
+
+    // If payment was for a PURCHASE
+    else if (paymentFor.startsWith("PU")) {
+      const purchase = await Purchase.findOne({ code: paymentFor });
+      if (purchase) {
+        // Roll back payment
+        purchase.amountPaid -= payableAmount;
+        if (purchase.amountPaid < 0) purchase.amountPaid = 0;
+
+        purchase.dueBalance = purchase.purchaseAmount - purchase.amountPaid;
+
+        if (purchase.dueBalance <= 0) {
+          purchase.paymentStatus = "paid";
+          purchase.dueBalance = 0;
+        } else if (purchase.amountPaid > 0) {
+          purchase.paymentStatus = "partial";
+        } else {
+          purchase.paymentStatus = "unpaid";
+        }
+
+        await purchase.save();
+      }
+    } else {
+      return res.status(400).json({ message: "Invalid paymentFor code" });
+    }
+
+    // Delete the payment after rollback
+    await Payment.findByIdAndDelete(paymentId);
+
+    res
+      .status(200)
+      .json({ message: "Payment deleted and records updated successfully" });
   } catch (error) {
+    console.error("Delete Payment Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// BULK DELETE Payment
+// exports.bulkDeletePayment = async (req, res) => {
+//   try {
+//     const { ids } = req.body; // expects an array of _id values
+
+//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "No Payment IDs provided." });
+//     }
+
+//     const result = await Payment.deleteMany({ _id: { $in: ids } });
+
+//     res.status(200).json({
+//       success: true,
+//       message: `${result.deletedCount} Payment deleted successfully.`,
+//     });
+//   } catch (error) {
+//     console.error("Bulk delete error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error." });
+//   }
+// };
+
+
+
+exports.bulkDeletePayment = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No Payment IDs provided.",
+      });
+    }
+
+    // Step 1: Fetch all payments to be deleted
+    const payments = await Payment.find({ _id: { $in: ids } });
+
+    if (payments.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching payments found.",
+      });
+    }
+
+    // Step 2: Process each payment to roll back its effect
+    for (const payment of payments) {
+      const { paymentFor, payableAmount } = payment;
+
+      if (paymentFor.startsWith("SA")) {
+        const sale = await Sale.findOne({ code: paymentFor });
+        if (sale) {
+          sale.amountPaid -= payableAmount;
+          if (sale.amountPaid < 0) sale.amountPaid = 0;
+
+          sale.dueBalance = sale.saleAmount - sale.amountPaid;
+
+          if (sale.dueBalance <= 0) {
+            sale.paymentStatus = "paid";
+            sale.dueBalance = 0;
+          } else if (sale.amountPaid > 0) {
+            sale.paymentStatus = "partial";
+          } else {
+            sale.paymentStatus = "unpaid";
+          }
+
+          await sale.save();
+        }
+      } else if (paymentFor.startsWith("PU")) {
+        const purchase = await Purchase.findOne({ code: paymentFor });
+        if (purchase) {
+          purchase.amountPaid -= payableAmount;
+          if (purchase.amountPaid < 0) purchase.amountPaid = 0;
+
+          purchase.dueBalance = purchase.purchaseAmount - purchase.amountPaid;
+
+          if (purchase.dueBalance <= 0) {
+            purchase.paymentStatus = "paid";
+            purchase.dueBalance = 0;
+          } else if (purchase.amountPaid > 0) {
+            purchase.paymentStatus = "partial";
+          } else {
+            purchase.paymentStatus = "unpaid";
+          }
+
+          await purchase.save();
+        }
+      } else {
+        console.warn(`Invalid paymentFor code: ${paymentFor}`);
+      }
+    }
+
+    // Step 3: Delete all payments in one go
+    const result = await Payment.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} payments deleted and rollbacks completed.`,
+    });
+  } catch (error) {
+    console.error("Bulk delete error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+    });
+  }
+};
+

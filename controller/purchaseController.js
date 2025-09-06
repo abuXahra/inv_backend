@@ -306,14 +306,36 @@ exports.deletePurchase = async (req, res) => {
   try {
     const purchaseId = req.params.purchaseId;
 
-    // Find user and delete it
-    const purchase = await Purchase.findByIdAndDelete(purchaseId);
+    const purchase = await Purchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ message: "Purchase not found" });
+    }
 
-    return res
-      .status(200)
-      .json({ purchase, message: "Purchase deleted successfully" });
+    // Rollback product quantities
+    for (const item of purchase.purchaseItems) {
+      if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+
+      await Product.findByIdAndUpdate(
+        item.productId,
+        {
+          $inc: {
+            purchaseQuantity: -item.quantity,
+          },
+        },
+        { new: true }
+      );
+    }
+
+    // Now delete the purchase
+    await Purchase.findByIdAndDelete(purchaseId);
+
+    res.status(200).json({
+      success: true,
+      message: "purchase deleted and product quantities rolled back.",
+    });
   } catch (err) {
-    res.status(500).json(err);
+    console.error("Delete purchase Error:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -337,5 +359,58 @@ exports.bulkDeletePurchase = async (req, res) => {
   } catch (error) {
     console.error("Bulk delete error:", error);
     res.status(500).json({ success: false, message: "Internal server error." });
+  }
+};
+
+exports.bulkDeletePurchase = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No Purchase IDs provided.",
+      });
+    }
+
+    // Fetch all Purchase to rollback product quantities
+    const purchases = await Purchase.find({ _id: { $in: ids } });
+
+    if (purchases.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching purchases found.",
+      });
+    }
+
+    for (const purchase of purchases) {
+      for (const item of purchase.purchaseItems) {
+        if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+
+        await Product.findByIdAndUpdate(
+          item.productId,
+          {
+            $inc: {
+              purchaseQuantity: -item.quantity,
+            },
+          },
+          { new: true }
+        );
+      }
+    }
+
+    // Now delete all purchases in one operation
+    const result = await Purchase.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} purchases deleted and product quantities rolled back.`,
+    });
+  } catch (error) {
+    console.error("Bulk delete purchase error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+    });
   }
 };

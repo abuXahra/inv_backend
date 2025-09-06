@@ -106,7 +106,12 @@ exports.saleRegister = async (req, res) => {
 
       await Product.findByIdAndUpdate(
         item.productId,
-        { $inc: { saleQuantity: item.quantity } },
+        {
+          $inc: {
+            saleQuantity: item.quantity,
+            purchaseQuantity: -item.quantity,
+          },
+        },
         { new: true }
       );
     }
@@ -283,40 +288,95 @@ exports.saleUpdate = async (req, res) => {
   }
 };
 
-// delete sale
 exports.deleteSale = async (req, res) => {
   try {
     const saleId = req.params.saleId;
 
-    // Find sale and delete it
-    const sale = await Sale.findByIdAndDelete(saleId);
+    const sale = await Sale.findById(saleId);
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
 
-    return res.status(200).json({ sale, message: "Sale deleted successfully" });
+    // Rollback product quantities
+    for (const item of sale.saleItems) {
+      if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+
+      await Product.findByIdAndUpdate(
+        item.productId,
+        {
+          $inc: {
+            saleQuantity: -item.quantity,
+            purchaseQuantity: item.quantity,
+          },
+        },
+        { new: true }
+      );
+    }
+
+    // Now delete the sale
+    await Sale.findByIdAndDelete(saleId);
+
+    res.status(200).json({
+      success: true,
+      message: "Sale deleted and product quantities rolled back.",
+    });
   } catch (err) {
-    res.status(500).json(err);
+    console.error("Delete Sale Error:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// BULK DELETE Sale
 exports.bulkDeleteSale = async (req, res) => {
   try {
-    const { ids } = req.body; // expects an array of _id values
+    const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No Sales IDs provided." });
+      return res.status(400).json({
+        success: false,
+        message: "No Sale IDs provided.",
+      });
     }
 
+    // Fetch all sales to rollback product quantities
+    const sales = await Sale.find({ _id: { $in: ids } });
+
+    if (sales.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching sales found.",
+      });
+    }
+
+    for (const sale of sales) {
+      for (const item of sale.saleItems) {
+        if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+
+        await Product.findByIdAndUpdate(
+          item.productId,
+          {
+            $inc: {
+              saleQuantity: -item.quantity,
+              purchaseQuantity: item.quantity,
+            },
+          },
+          { new: true }
+        );
+      }
+    }
+
+    // Now delete all sales in one operation
     const result = await Sale.deleteMany({ _id: { $in: ids } });
 
     res.status(200).json({
       success: true,
-      message: `${result.deletedCount} Sale deleted successfully.`,
+      message: `${result.deletedCount} sales deleted and product quantities rolled back.`,
     });
   } catch (error) {
-    console.error("Bulk delete error:", error);
-    res.status(500).json({ success: false, message: "Internal server error." });
+    console.error("Bulk delete sale error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+    });
   }
 };
 
