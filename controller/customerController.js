@@ -3,8 +3,32 @@ const Customer = require("../models/Customer");
 // register customer
 exports.createCustomer = async (req, res) => {
   try {
-    const { name, email, phoneNumber, taxNumber, address, imgUrl, userId } =
-      req.body;
+    const {
+      name,
+      email,
+      phoneNumber,
+      taxNumber,
+      address,
+      imgUrl,
+      prefix,
+      userId,
+    } = req.body;
+
+    // Find the last customer with the same prefix
+    const lastCustomer = await Customer.findOne({
+      code: { $regex: `^${prefix}` },
+    })
+      .sort({ code: -1 })
+      .exec();
+
+    let lastSerial = 0;
+
+    if (lastCustomer && lastCustomer.code) {
+      const match = lastCustomer.code.match(/\d+$/); // Extract the numeric part from the code
+      if (match) {
+        lastSerial = parseInt(match[0], 10);
+      }
+    }
 
     // Check for existing entries
     const [existingEmail] = await Promise.all([Customer.findOne({ email })]);
@@ -15,6 +39,9 @@ exports.createCustomer = async (req, res) => {
       });
     }
 
+    const serial = (lastSerial + 1).toString().padStart(4, "0");
+    const code = `${prefix}${serial}`;
+
     // Create  instance
     const newCustomer = new Customer({
       name,
@@ -23,6 +50,7 @@ exports.createCustomer = async (req, res) => {
       taxNumber,
       address,
       imgUrl,
+      code,
       userId,
     });
 

@@ -7,5 +7,6 @@ router.get("/", categoryController.fetchAllCategory);
 router.get("/:categoryId", categoryController.fetchCategory);
 router.put("/:categoryId", categoryController.categoryUpdate);
 router.delete("/:categoryId", categoryController.deleteCategory);
+router.get("/:categoryId/products", categoryController.getCategoryWithProducts);
 
 module.exports = router;

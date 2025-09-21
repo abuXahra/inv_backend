@@ -29,6 +29,14 @@ const PrefixSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  saleReturn: {
+    type: String,
+    required: true,
+  },
+  purchaseReturn: {
+    type: String,
+    required: true,
+  },
 });
 
 const CompanySchema = new mongoose.Schema(

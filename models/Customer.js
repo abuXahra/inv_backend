@@ -11,6 +11,11 @@ const CustomerSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     phoneNumber: String,
     taxNumber: String,
     address: {

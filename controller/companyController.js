@@ -25,6 +25,8 @@ exports.companyRegister = async (req, res) => {
       customer,
       sale,
       expense,
+      saleReturn,
+      purchaseReturn,
       userId,
     } = req.body;
 
@@ -70,6 +72,8 @@ exports.companyRegister = async (req, res) => {
           customer,
           sale,
           expense,
+          saleReturn,
+          purchaseReturn,
         },
       ],
       userId,
@@ -145,6 +149,8 @@ exports.companyUpdate = async (req, res) => {
       customer,
       sale,
       expense,
+      saleReturn,
+      purchaseReturn,
       userId,
     } = req.body;
 
@@ -179,6 +185,8 @@ exports.companyUpdate = async (req, res) => {
             customer,
             sale,
             expense,
+            saleReturn,
+            purchaseReturn,
           },
         ],
         userId,

@@ -14,11 +14,11 @@ const CategorySchema = new mongoose.Schema(
       default: "ON",
     },
 
-    // code: {
-    //   type: String,
-    //   required: true,
-    //   unique: true,
-    // },
+    code: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     note: {
       type: String,
     },
