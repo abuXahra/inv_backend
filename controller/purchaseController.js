@@ -83,14 +83,14 @@ exports.purchaseRegister = async (req, res) => {
     // Enforce dueBalance & amountPaid rules
     if (paymentStatus === "unpaid") {
       newPurchase.amountPaid = 0;
-      newPurchase.dueBalance = newPurchase.saleAmount;
+      newPurchase.dueBalance = newPurchase.purchaseAmount;
     } else if (paymentStatus === "paid") {
-      newPurchase.amountPaid = newPurchase.saleAmount;
+      newPurchase.amountPaid = newPurchase.purchaseAmount;
       newPurchase.dueBalance = 0;
     } else if (paymentStatus === "partial") {
       if (!newPurchase.amountPaid) {
         newPurchase.dueBalance =
-          newPurchase.saleAmount - newPurchase.amountPaid;
+          newPurchase.purchaseAmount - newPurchase.amountPaid;
       }
     }
 
@@ -256,21 +256,21 @@ exports.purchaseUpdate = async (req, res) => {
     // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
     if (paymentStatus === "unpaid") {
       updateData.amountPaid = 0;
-      updateData.dueBalance = saleAmount;
+      updateData.dueBalance = purchaseAmount;
     } else if (paymentStatus === "paid") {
-      updateData.amountPaid = saleAmount;
+      updateData.amountPaid = purchaseAmount;
       updateData.dueBalance = 0;
     } else if (paymentStatus === "partial") {
       if (!amountPaid || amountPaid <= 0) {
         updateData.amountPaid = 0;
-        updateData.dueBalance = saleAmount;
+        updateData.dueBalance = purchaseAmount;
       } else {
-        updateData.dueBalance = saleAmount - amountPaid;
+        updateData.dueBalance = purchaseAmount - amountPaid;
       }
     }
 
     // 6️⃣ Update the sale
-    const updatedPurchase = await Sale.findByIdAndUpdate(
+    const updatedPurchase = await Purchase.findByIdAndUpdate(
       purchaseId,
       updateData,
       {

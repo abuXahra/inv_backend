@@ -77,6 +77,8 @@ exports.salesReturnRegister = async (req, res) => {
       quantity: Number(item.quantity),
       unitCost: Number(item.unitCost),
       price: Number(item.price),
+      tax: Number(item.tax),
+      taxAmount: Number(item.taxAmount),
       amount: Number(item.amount),
     }));
 
@@ -110,8 +112,8 @@ exports.salesReturnRegister = async (req, res) => {
         item.productId,
         {
           $inc: {
-            purchaseQuantity: item.quantity, // put back in stock
             saleQuantity: -item.quantity, // reduce sold
+            // purchaseQuantity: item.quantity, // put back in stock
           },
         },
         { new: true }
@@ -165,6 +167,7 @@ exports.fetchAllSalesReturns = async (req, res) => {
 };
 
 // 📌 Update Sales Return
+// 📌 Update Sales Return
 exports.updateSalesReturn = async (req, res) => {
   try {
     const { returnId } = req.params;
@@ -174,7 +177,6 @@ exports.updateSalesReturn = async (req, res) => {
       customer,
       returnAmount,
       reason,
-      // invoiceNo,
       paymentType,
       paymentStatus,
       amountPaid,
@@ -192,22 +194,26 @@ exports.updateSalesReturn = async (req, res) => {
     if (!salesReturn)
       return res.status(404).json({ message: "Sales return not found" });
 
-    // 1️⃣ Rollback old stock
+    // 🔄 Step 1: Rollback old stock
     for (const oldItem of salesReturn.returnItems) {
       await Product.findByIdAndUpdate(
         oldItem.productId,
         {
           $inc: {
-            purchaseQuantity: -oldItem.quantity, // remove from stock
-            saleQuantity: oldItem.quantity, // restore sold
+            purchaseQuantity: -oldItem.quantity, // remove previously added back to stock
+            saleQuantity: oldItem.quantity, // restore sold qty
           },
         },
         { new: true }
       );
     }
 
-    // 2️⃣ Validate new return items
+    // 🔍 Step 2: Validate new return items
     const sale = await Sale.findById(saleId || salesReturn.sale);
+    if (!sale) {
+      return res.status(404).json({ message: "Related sale not found" });
+    }
+
     for (const item of returnItems) {
       const soldItem = sale.saleItems.find(
         (si) => si.productId.toString() === item.productId
@@ -224,27 +230,26 @@ exports.updateSalesReturn = async (req, res) => {
       }
     }
 
-    // 3️⃣ Apply new stock
+    // 📦 Step 3: Apply new stock
     for (const item of returnItems) {
       await Product.findByIdAndUpdate(
         item.productId,
         {
           $inc: {
-            purchaseQuantity: item.quantity,
-            saleQuantity: -item.quantity,
+            purchaseQuantity: item.quantity, // add back to stock
+            saleQuantity: -item.quantity, // reduce sold qty
           },
         },
         { new: true }
       );
     }
 
-    // 4️⃣ Update return record
+    // 📝 Step 4: Update sales return record
     salesReturn.returnDate = returnDate || salesReturn.returnDate;
     salesReturn.sale = saleId || salesReturn.sale;
     salesReturn.customer = customer || salesReturn.customer;
     salesReturn.returnAmount = returnAmount || salesReturn.returnAmount;
     salesReturn.reason = reason || salesReturn.reason;
-    // salesReturn.invoiceNo = invoiceNo || salesReturn.invoiceNo;
     salesReturn.paymentType = paymentType || salesReturn.paymentType;
     salesReturn.paymentStatus = paymentStatus || salesReturn.paymentStatus;
     salesReturn.amountPaid = amountPaid || salesReturn.amountPaid;
@@ -259,9 +264,10 @@ exports.updateSalesReturn = async (req, res) => {
 
     await salesReturn.save();
 
-    res
-      .status(200)
-      .json({ message: "Sales return updated", return: salesReturn });
+    res.status(200).json({
+      message: "Sales return updated successfully",
+      return: salesReturn,
+    });
   } catch (error) {
     console.error("❌ Update Sales Return Error:", error);
     res
@@ -279,13 +285,13 @@ exports.deleteSalesReturn = async (req, res) => {
     if (!salesReturn)
       return res.status(404).json({ message: "Sales return not found" });
 
-    // Rollback stock
+    // Rollback stock (remove returned qty from stock)
     for (const item of salesReturn.returnItems) {
       await Product.findByIdAndUpdate(
         item.productId,
         {
           $inc: {
-            purchaseQuantity: -item.quantity,
+            // purchaseQuantity: -item.quantity,
             saleQuantity: item.quantity,
           },
         },
@@ -295,9 +301,67 @@ exports.deleteSalesReturn = async (req, res) => {
 
     await salesReturn.deleteOne();
 
-    res.status(200).json({ message: "Sales return deleted" });
+    res.status(200).json({ message: "Sales return deleted and sale restored" });
   } catch (error) {
     console.error("❌ Delete Sales Return Error:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+// 📌 Bulk Delete Sales Returns
+exports.bulkDeleteSalesReturns = async (req, res) => {
+  try {
+    const { ids } = req.body; // array of return IDs
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No return IDs provided" });
+    }
+
+    const salesReturns = await SalesReturn.find({ _id: { $in: ids } });
+
+    for (const salesReturn of salesReturns) {
+      // 1️⃣ Rollback stock in Product
+      for (const item of salesReturn.returnItems) {
+        await Product.findByIdAndUpdate(
+          item.productId,
+          {
+            $inc: {
+              purchaseQuantity: -item.quantity,
+              saleQuantity: item.quantity,
+            },
+          },
+          { new: true }
+        );
+      }
+
+      // 2️⃣ Restore quantities back into original Sale.saleItems
+      const sale = await Sale.findById(salesReturn.sale);
+      if (sale) {
+        sale.saleItems = sale.saleItems.map((si) => {
+          const returnedItem = salesReturn.returnItems.find(
+            (ri) => ri.productId.toString() === si.productId.toString()
+          );
+          if (returnedItem) {
+            return {
+              ...si.toObject(),
+              quantity: si.quantity + returnedItem.quantity,
+            };
+          }
+          return si;
+        });
+        await sale.save();
+      }
+
+      // 3️⃣ Delete the return
+      await salesReturn.deleteOne();
+    }
+
+    res
+      .status(200)
+      .json({ message: "Selected sales returns deleted successfully" });
+  } catch (error) {
+    console.error("❌ Bulk Delete Sales Returns Error:", error);
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });

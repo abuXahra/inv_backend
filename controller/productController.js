@@ -115,7 +115,7 @@ exports.fetchProduct = async (req, res) => {
     const product = await Product.findById(productId)
       .populate({ path: "unit", select: "title" })
       .populate({ path: "category", select: "title" })
-      .lean();
+      .lean({ virtuals: true });
     res.status(200).json(product);
   } catch (err) {
     res.status(500).json(err);

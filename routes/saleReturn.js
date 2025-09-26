@@ -9,7 +9,7 @@ router.post("/create", saleReturnController.salesReturnRegister);
 router.get("/", saleReturnController.fetchAllSalesReturns);
 
 // bulk delete router
-// router.delete("/bulk-delete", saleReturnController.bulkDeleteSale);
+router.delete("/bulk-delete", saleReturnController.bulkDeleteSalesReturns);
 
 // update router
 router.put("/:returnId", saleReturnController.updateSalesReturn);

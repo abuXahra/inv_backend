@@ -109,7 +109,7 @@ exports.saleRegister = async (req, res) => {
         {
           $inc: {
             saleQuantity: item.quantity,
-            purchaseQuantity: -item.quantity,
+            // purchaseQuantity: -item.quantity,
           },
         },
         { new: true }
@@ -287,6 +287,8 @@ exports.saleUpdate = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
+
+// spark go21
 
 exports.deleteSale = async (req, res) => {
   try {

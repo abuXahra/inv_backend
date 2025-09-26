@@ -8,6 +8,8 @@ const ReturnItemSchema = new mongoose.Schema({
   },
   title: { type: String, required: true },
   quantity: { type: Number, required: true },
+  tax: { type: Number, required: true },
+  taxAmount: { type: Number, required: true },
   unitCost: { type: Number, required: true },
   price: { type: Number, required: true },
   amount: { type: Number, required: true }, // quantity * price
@@ -19,6 +21,7 @@ const SalesReturnSchema = new mongoose.Schema(
     returnDate: { type: Date, required: true },
 
     sale: { type: mongoose.Schema.Types.ObjectId, ref: "Sale", required: true },
+
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",

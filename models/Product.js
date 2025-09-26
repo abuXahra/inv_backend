@@ -108,9 +108,9 @@ const ProductSchema = new mongoose.Schema(
   }
 );
 
-// Virtual field for stockQuantity
+// ✅ Virtual field for available stock
 ProductSchema.virtual("stockQuantity").get(function () {
-  return (this.purchaseQuantity || 0) - (this.saleQuantity || 0);
+  return Math.max((this.purchaseQuantity || 0) - (this.saleQuantity || 0), 0);
 });
 
 module.exports = mongoose.model("Product", ProductSchema);
