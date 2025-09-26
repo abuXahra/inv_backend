@@ -111,10 +111,7 @@ exports.salesReturnRegister = async (req, res) => {
       await Product.findByIdAndUpdate(
         item.productId,
         {
-          $inc: {
-            saleQuantity: -item.quantity, // reduce sold
-            // purchaseQuantity: item.quantity, // put back in stock
-          },
+          $inc: { saleQuantity: --item.quantity }, // reduce sold
         },
         { new: true }
       );
@@ -290,10 +287,7 @@ exports.deleteSalesReturn = async (req, res) => {
       await Product.findByIdAndUpdate(
         item.productId,
         {
-          $inc: {
-            // purchaseQuantity: -item.quantity,
-            saleQuantity: item.quantity,
-          },
+          $inc: { saleQuantity: +item.quantity }, // + added
         },
         { new: true }
       );
@@ -327,7 +321,7 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
           item.productId,
           {
             $inc: {
-              purchaseQuantity: -item.quantity,
+              // purchaseQuantity: -item.quantity,
               saleQuantity: item.quantity,
             },
           },

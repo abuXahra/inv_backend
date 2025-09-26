@@ -339,29 +339,6 @@ exports.deletePurchase = async (req, res) => {
   }
 };
 
-// BULK DELETE Purchase
-exports.bulkDeletePurchase = async (req, res) => {
-  try {
-    const { ids } = req.body; // expects an array of _id values
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No Purchase IDs provided." });
-    }
-
-    const result = await Purchase.deleteMany({ _id: { $in: ids } });
-
-    res.status(200).json({
-      success: true,
-      message: `${result.deletedCount} Purchase deleted successfully.`,
-    });
-  } catch (error) {
-    console.error("Bulk delete error:", error);
-    res.status(500).json({ success: false, message: "Internal server error." });
-  }
-};
-
 exports.bulkDeletePurchase = async (req, res) => {
   try {
     const { ids } = req.body;

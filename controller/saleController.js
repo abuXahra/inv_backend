@@ -89,9 +89,15 @@ exports.saleRegister = async (req, res) => {
       newSale.amountPaid = newSale.saleAmount;
       newSale.dueBalance = 0;
     } else if (paymentStatus === "partial") {
-      if (!newSale.amountPaid) {
+      if (!amountPaid || amountPaid <= 0) {
+        newSale.amountPaid = 0;
+        newSale.dueBalance = newSale.saleAmount;
+      } else {
         newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
       }
+      // if (!newSale.amountPaid) {
+      //   newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
+      // }
     }
 
     await newSale.save();
@@ -308,7 +314,6 @@ exports.deleteSale = async (req, res) => {
         {
           $inc: {
             saleQuantity: -item.quantity,
-            purchaseQuantity: item.quantity,
           },
         },
         { new: true }
@@ -358,7 +363,6 @@ exports.bulkDeleteSale = async (req, res) => {
           {
             $inc: {
               saleQuantity: -item.quantity,
-              purchaseQuantity: item.quantity,
             },
           },
           { new: true }
@@ -388,7 +392,7 @@ exports.bulkDeleteSale = async (req, res) => {
 exports.getPayableSales = async (req, res) => {
   try {
     const payableSales = await Sale.find({
-      paymentStatus: { $in: ["Unpaid", "Partial"] },
+      paymentStatus: { $in: ["unpaid", "partial"] },
     }).select("code customerName saleAmount paymentStatus");
 
     res.status(200).json(payableSales);
