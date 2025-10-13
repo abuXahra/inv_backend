@@ -5,8 +5,10 @@ const paymentController = require("../controller/paymentController");
 router.post("/register", paymentController.registerPayment);
 router.get("/", paymentController.getPayments);
 router.delete("/bulk-delete", paymentController.bulkDeletePayment);
+router.get("/total-payable", paymentController.getTotalPayableAmount);
+// dynamic routes
 router.get("/:paymentId", paymentController.getPayment);
-// router.put("/:paymentId", paymentController.updatePayment);
+router.put("/:paymentId", paymentController.updatePayment);
 router.delete("/:paymentId", paymentController.deletePayment);
 
 module.exports = router;

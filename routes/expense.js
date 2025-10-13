@@ -11,6 +11,8 @@ router.get("/", expenseController.fetchAllExpense);
 // bulk delete
 router.delete("/bulk-delete", expenseController.bulkDeleteExpenses);
 
+router.get("/expense-total", expenseController.getTotalExpenseAmount);
+
 // fetch single
 router.get("/:expenseId", expenseController.fetchExpense);
 

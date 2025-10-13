@@ -125,3 +125,30 @@ exports.bulkDeleteExpenses = async (req, res) => {
     res.status(500).json({ message: "Server error during bulk delete." });
   }
 };
+
+// Get Total of All Expense Amounts
+exports.getTotalExpenseAmount = async (req, res) => {
+  try {
+    const result = await Expense.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalExpense: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const total = result[0]?.totalExpense || 0;
+
+    res.status(200).json({ totalExpenseAmount: total });
+  } catch (error) {
+    console.error(
+      "Error getting total Expense amount:",
+      error.message,
+      error.stack
+    );
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};

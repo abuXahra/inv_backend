@@ -803,3 +803,30 @@ exports.bulkDeletePurchase = async (req, res) => {
     });
   }
 };
+
+// Get Total of All Purchase Amounts
+exports.getTotalPurchaseAmount = async (req, res) => {
+  try {
+    const result = await Purchase.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalPurchase: { $sum: "$purchaseAmount" },
+        },
+      },
+    ]);
+
+    const total = result[0]?.totalPurchase || 0;
+
+    res.status(200).json({ totalPurchaseAmount: total });
+  } catch (error) {
+    console.error(
+      "Error getting total Purchase amount:",
+      error.message,
+      error.stack
+    );
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};

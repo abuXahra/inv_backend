@@ -11,6 +11,8 @@ router.get("/", purchaseController.fetchAllPurchase);
 // bulk delet router
 router.delete("/bulk-delete", purchaseController.bulkDeletePurchase);
 
+router.get("/total-purchase", purchaseController.getTotalPurchaseAmount);
+
 // update router
 router.put("/:purchaseId", purchaseController.purchaseUpdate);
 

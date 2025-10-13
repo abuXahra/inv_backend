@@ -10,6 +10,8 @@ router.get("/", saleController.fetchAllSale);
 
 router.get("/payable", saleController.getPayableSales);
 
+router.get("/total-sale", saleController.getTotalSaleAmount);
+
 // bulk delete router
 router.delete("/bulk-delete", saleController.bulkDeleteSale);
 

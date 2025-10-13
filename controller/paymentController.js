@@ -107,7 +107,7 @@ exports.getPayments = async (req, res) => {
 // Get Single Payment by ID
 exports.getPayment = async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id).populate(
+    const payment = await Payment.findById(req.params.paymentId).populate(
       "userId",
       "name email"
     );
@@ -121,7 +121,7 @@ exports.getPayment = async (req, res) => {
 // Update Payment
 exports.updatePayment = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { paymentId } = req.params;
     const {
       paymentDate,
       paymentFor,
@@ -131,7 +131,7 @@ exports.updatePayment = async (req, res) => {
       userId,
     } = req.body;
 
-    const payment = await Payment.findById(id);
+    const payment = await Payment.findById(paymentId);
     if (!payment) return res.status(404).json({ message: "Payment not found" });
 
     let invoiceNo = paymentFor || payment.paymentFor;
@@ -216,18 +216,6 @@ exports.updatePayment = async (req, res) => {
 };
 
 // Delete Payment
-// exports.deletePayment = async (req, res) => {
-//   try {
-//     const paymentId = req.params.paymentId;
-
-//     const payment = await Payment.findByIdAndDelete(paymentId);
-//     if (!payment) return res.status(404).json({ message: "Payment not found" });
-//     res.status(200).json({ message: "Payment deleted successfully" });
-//   } catch (error) {
-//     res.status(500).json({ message: "Internal server error" });
-//   }
-// };
-
 exports.deletePayment = async (req, res) => {
   try {
     const paymentId = req.params.paymentId;
@@ -296,31 +284,6 @@ exports.deletePayment = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-// BULK DELETE Payment
-// exports.bulkDeletePayment = async (req, res) => {
-//   try {
-//     const { ids } = req.body; // expects an array of _id values
-
-//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "No Payment IDs provided." });
-//     }
-
-//     const result = await Payment.deleteMany({ _id: { $in: ids } });
-
-//     res.status(200).json({
-//       success: true,
-//       message: `${result.deletedCount} Payment deleted successfully.`,
-//     });
-//   } catch (error) {
-//     console.error("Bulk delete error:", error);
-//     res.status(500).json({ success: false, message: "Internal server error." });
-//   }
-// };
-
-
 
 exports.bulkDeletePayment = async (req, res) => {
   try {
@@ -406,3 +369,29 @@ exports.bulkDeletePayment = async (req, res) => {
   }
 };
 
+// Get Total of All Payable Amounts
+exports.getTotalPayableAmount = async (req, res) => {
+  try {
+    const result = await Payment.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalPayable: { $sum: "$payableAmount" },
+        },
+      },
+    ]);
+
+    const total = result[0]?.totalPayable || 0;
+
+    res.status(200).json({ totalPayableAmount: total });
+  } catch (error) {
+    console.error(
+      "Error getting total payable amount:",
+      error.message,
+      error.stack
+    );
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
