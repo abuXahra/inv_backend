@@ -1,20 +1,21 @@
 const express = require("express");
 const router = express.Router();
 const taxController = require("../controller/taxController");
+const verifyToken = require("../verifyToken");
 
 // create
-router.post("/create", taxController.createTax);
+router.post("/create", verifyToken, taxController.createTax);
 
 // fetch all
-router.get("/", taxController.fetchAllTax);
+router.get("/", verifyToken, taxController.fetchAllTax);
 
 // fetch single
-router.get("/:taxId", taxController.fetchTax);
+router.get("/:taxId", verifyToken, taxController.fetchTax);
 
 // update
-router.put("/:taxId", taxController.updateTax);
+router.put("/:taxId", verifyToken, taxController.updateTax);
 
 // delete
-router.delete("/:taxId", taxController.deleteTax);
+router.delete("/:taxId", verifyToken, taxController.deleteTax);
 
 module.exports = router;

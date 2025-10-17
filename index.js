@@ -64,17 +64,51 @@ app.use("/api/purchaseReturn", purchaseReturnRoute);
 app.use("/api/reports", reportRoute);
 
 // Image upload route
+// const storage = multer.diskStorage({
+//   destination: (req, file, fn) => {
+//     fn(null, "images");
+//   },
+//   filename: (req, file, fn) => {
+//     // fn(null, req.body.img)
+//     fn(null, file.originalname);
+//   },
+// });
+
+// const upload = multer({ storage });
+// app.post("/api/upload", upload.single("file"), (req, res) => {
+//   res.status(200).json("Image has been uploaded successfully");
+// });
+
+// Storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, fn) => {
-    fn(null, "images");
+  destination: (req, file, cb) => {
+    cb(null, "images"); // Make sure the 'images' folder exists
   },
-  filename: (req, file, fn) => {
-    // fn(null, req.body.img)
-    fn(null, file.originalname);
+  filename: (req, file, cb) => {
+    cb(null, file.originalname); // You may want to sanitize or make this unique in production
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|gif|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(
+      path.extname(file.originalname).toLowerCase()
+    );
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed!"));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // ✅ Limit to 10MB
+  },
+});
+
 app.post("/api/upload", upload.single("file"), (req, res) => {
   res.status(200).json("Image has been uploaded successfully");
 });

@@ -1,17 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const userController = require("../controller/userController");
+const verifyToken = require("../verifyToken");
 
 //UPDATE
-router.put("/:userId", userController.userUpdate);
+router.put("/:userId", verifyToken, userController.userUpdate);
 
 //GET SINGLE USER
-router.get("/:userId", userController.userFetch);
+router.get("/:userId", verifyToken, userController.userFetch);
 
 //Delete USER
-router.delete("/:userId", userController.userDelete);
+router.delete("/:userId", verifyToken, userController.userDelete);
 
 //GET ALL USER
-router.get("/", userController.allUsersFetch);
+router.get("/", verifyToken, userController.allUsersFetch);
 
 module.exports = router;

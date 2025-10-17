@@ -1,13 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const customerController = require("../controller/customerController");
+const verifyToken = require("../verifyToken");
 
-router.post("/register", customerController.createCustomer);
-router.get("/", customerController.fetchCustomers);
+router.post("/register", verifyToken, customerController.createCustomer);
+router.get("/", verifyToken, customerController.fetchCustomers);
 // add bulk delete route before the dynamic route
-router.delete("/bulk-delete", customerController.bulkDeleteCustomers);
-router.get("/:customerId", customerController.fetchCustomer);
-router.put("/:customerId", customerController.updateCustomer);
-router.delete("/:customerId", customerController.customerDelete);
+router.delete(
+  "/bulk-delete",
+  verifyToken,
+  customerController.bulkDeleteCustomers
+);
+router.get("/:customerId", verifyToken, customerController.fetchCustomer);
+router.put("/:customerId", verifyToken, customerController.updateCustomer);
+router.delete("/:customerId", verifyToken, customerController.customerDelete);
 
 module.exports = router;

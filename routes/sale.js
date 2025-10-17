@@ -1,27 +1,28 @@
 const express = require("express");
 const router = express.Router();
 const saleController = require("../controller/saleController");
+const verifyToken = require("../verifyToken");
 
 // register router
-router.post("/create", saleController.saleRegister);
+router.post("/create", verifyToken, saleController.saleRegister);
 
 // fetch all router
-router.get("/", saleController.fetchAllSale);
+router.get("/", verifyToken, saleController.fetchAllSale);
 
-router.get("/payable", saleController.getPayableSales);
+router.get("/payable", verifyToken, saleController.getPayableSales);
 
-router.get("/total-sale", saleController.getTotalSaleAmount);
+router.get("/total-sale", verifyToken, saleController.getTotalSaleAmount);
 
 // bulk delete router
-router.delete("/bulk-delete", saleController.bulkDeleteSale);
+router.delete("/bulk-delete", verifyToken, saleController.bulkDeleteSale);
 
 // update router
-router.put("/:saleId", saleController.saleUpdate);
+router.put("/:saleId", verifyToken, saleController.saleUpdate);
 
 // fetch router
-router.get("/:saleId", saleController.fetchSale);
+router.get("/:saleId", verifyToken, saleController.fetchSale);
 
 // delete router
-router.delete("/:saleId", saleController.deleteSale);
+router.delete("/:saleId", verifyToken, saleController.deleteSale);
 
 module.exports = router;
