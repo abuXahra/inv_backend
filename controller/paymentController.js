@@ -200,7 +200,8 @@ exports.updatePayment = async (req, res) => {
     payment.dueBalance = dueBalance;
     payment.payableAmount = payableAmount;
     payment.paymentType = paymentType || payment.paymentType;
-    payment.note = note || payment.note;
+    // payment.note = note || payment.note;
+    payment.note = note !== null ? note : payment.note;
     payment.userId = userId || payment.userId;
 
     await payment.save();
