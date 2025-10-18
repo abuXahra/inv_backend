@@ -100,6 +100,7 @@ exports.userLogin = async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
+      imgUrl: user.imgUrl,
     },
   });
 };
