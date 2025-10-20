@@ -39,6 +39,12 @@ const UserSchema = new mongoose.Schema(
     imgUrl: {
       type: String,
     },
+    permissions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Permission",
+      },
+    ],
   },
   { timestamps: true }
 );

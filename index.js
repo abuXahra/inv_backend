@@ -25,6 +25,7 @@ const paymentRoute = require("./routes/payment");
 const saleReturnRoute = require("./routes/saleReturn");
 const purchaseReturnRoute = require("./routes/purchaseReturn");
 const reportRoute = require("./routes/report");
+const permissionRoute = require("./routes/permission");
 
 const port = process.env.PORT || 5000;
 
@@ -62,6 +63,7 @@ app.use("/api/payment", paymentRoute);
 app.use("/api/saleReturn", saleReturnRoute);
 app.use("/api/purchaseReturn", purchaseReturnRoute);
 app.use("/api/reports", reportRoute);
+app.use("/api/permission", permissionRoute);
 
 // Image upload route
 // const storage = multer.diskStorage({

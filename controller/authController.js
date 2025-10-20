@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const Permission = require("../models/Permission");
 
 exports.userRegister = async (req, res) => {
   const {
@@ -20,26 +21,151 @@ exports.userRegister = async (req, res) => {
     const existingPhone = await User.findOne({ phoneNumber });
 
     if (existingUsername) {
-      return res
-        .status(400)
-        .json({ message: "Username already exists. Please use another name." });
+      return res.status(400).json({ message: "Username already exists." });
     }
 
     if (existingUserEmail) {
-      return res
-        .status(400)
-        .json({ message: "Email already exists. Please use another email." });
+      return res.status(400).json({ message: "Email already exists." });
     }
 
     if (existingPhone) {
       return res.status(400).json({
-        message: "Phone Number already exists. Please use another number.",
+        message: "Phone Number already exists.",
       });
     }
 
     const salt = await bcrypt.genSalt(10);
-
     const hashPassword = await bcrypt.hash(password, salt);
+
+    let permissionIds = [];
+    if (role === "user") {
+      // ✅ Fetch the enforced permission set from DB
+      const existingPermissions = await Permission.find();
+
+      // ✅ If there are no permissions in DB, you can initialize defaults
+      if (existingPermissions.length === 0) {
+        const defaultPermissions = [
+          {
+            module: "Product",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "Category",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "Customer",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: true,
+          },
+          {
+            module: "Sale",
+            canView: true,
+            canAdd: true,
+            canEdit: false,
+            canDelete: true,
+          },
+          {
+            module: "Supplier",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: true,
+          },
+          {
+            module: "Purchase",
+            canView: true,
+            canAdd: true,
+            canEdit: false,
+            canDelete: true,
+          },
+          {
+            module: "Payment",
+            canView: true,
+            canAdd: true,
+            canEdit: false,
+            canDelete: true,
+          },
+          {
+            module: "Expense",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "Sale Return",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "Purchase Return",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "User",
+            canView: true,
+            canAdd: true,
+            canEdit: true,
+            canDelete: false,
+          },
+          {
+            module: "Company",
+            canView: true,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+          },
+          {
+            module: "Tax",
+            canView: true,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+          },
+          {
+            module: "Unit",
+            canView: true,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+          },
+          {
+            module: "Generate/View Report",
+            canView: false,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+          },
+          {
+            module: "Permission",
+            canView: false,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+          },
+        ];
+        const inserted = await Permission.insertMany(defaultPermissions);
+        permissionIds = inserted.map((p) => p._id);
+      } else {
+        // ✅ Use existing enforced permissions
+        permissionIds = existingPermissions.map((p) => p._id);
+      }
+    }
+
     const newUser = new User({
       username,
       email,
@@ -47,6 +173,7 @@ exports.userRegister = async (req, res) => {
       phoneNumber,
       taxNumber,
       role,
+      permissions: permissionIds,
       address,
       imgUrl,
     });
@@ -130,7 +257,9 @@ exports.userLogout = async (req, res) => {
 // Get logged in user's info using token
 exports.getUserInfo = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("-password"); // exclude password
+    const user = await User.findById(req.userId)
+      .select("-password")
+      .populate("permissions"); // exclude password
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
   } catch (err) {
