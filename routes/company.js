@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const companyController = require("../controller/companyController");
-const verifyToken = require("../verifyToken");
+const verifyToken = require("../middlewares/verifyToken");
 
 // register router
 router.post("/register", verifyToken, companyController.companyRegister);

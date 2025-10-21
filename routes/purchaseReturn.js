@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const purchaseReturnController = require("../controller/purchaseReturnController");
-const verifyToken = require("../verifyToken");
+const verifyToken = require("../middlewares/verifyToken");
+const checkPermission = require("../middlewares/checkPermission");
 
 // register router
 router.post(
   "/create",
   verifyToken,
+  checkPermission("Purchase Return", "canAdd"),
   purchaseReturnController.purchaseReturnRegister
 ); //1
 
@@ -21,6 +23,7 @@ router.get(
 router.delete(
   "/bulk-delete",
   verifyToken,
+  checkPermission("Purchase Return", "canDelete"),
   purchaseReturnController.bulkDeletePurchaseReturn
 ); //4
 
@@ -28,6 +31,7 @@ router.delete(
 router.put(
   "/:returnId",
   verifyToken,
+  checkPermission("Purchase Return", "canEdit"),
   purchaseReturnController.updatePurchaseReturn
 ); //2
 
@@ -35,6 +39,7 @@ router.put(
 router.get(
   "/:returnId",
   verifyToken,
+  checkPermission("Purchase Return", "canView"),
   purchaseReturnController.fetchPurchaseReturn
 );
 
@@ -42,6 +47,7 @@ router.get(
 router.delete(
   "/:returnId",
   verifyToken,
+  checkPermission("Purchase Return", "canDelete"),
   purchaseReturnController.deletePurchaseReturn
 ); //3
 

@@ -1,10 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const purchaseController = require("../controller/purchaseController");
-const verifyToken = require("../verifyToken");
+const verifyToken = require("../middlewares/verifyToken");
+const checkPermission = require("../middlewares/checkPermission");
 
 // register router
-router.post("/create", verifyToken, purchaseController.purchaseRegister);
+router.post(
+  "/create",
+  verifyToken,
+  checkPermission("Purchase", "canAdd"),
+  purchaseController.purchaseRegister
+);
 
 // fetch all router
 router.get("/", verifyToken, purchaseController.fetchAllPurchase);
@@ -13,6 +19,7 @@ router.get("/", verifyToken, purchaseController.fetchAllPurchase);
 router.delete(
   "/bulk-delete",
   verifyToken,
+  checkPermission("Purchase", "canDelete"),
   purchaseController.bulkDeletePurchase
 );
 
@@ -23,12 +30,27 @@ router.get(
 );
 
 // update router
-router.put("/:purchaseId", verifyToken, purchaseController.purchaseUpdate);
+router.put(
+  "/:purchaseId",
+  verifyToken,
+  checkPermission("Purchase", "canEdit"),
+  purchaseController.purchaseUpdate
+);
 
 // fetch router
-router.get("/:purchaseId", verifyToken, purchaseController.fetchPurchase);
+router.get(
+  "/:purchaseId",
+  verifyToken,
+  checkPermission("Purchase", "canView"),
+  purchaseController.fetchPurchase
+);
 
 // delete router
-router.delete("/:purchaseId", verifyToken, purchaseController.deletePurchase);
+router.delete(
+  "/:purchaseId",
+  verifyToken,
+  checkPermission("Purchase", "canDelete"),
+  purchaseController.deletePurchase
+);
 
 module.exports = router;

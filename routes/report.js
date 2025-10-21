@@ -1,12 +1,23 @@
 const express = require("express");
 const router = express.Router();
 const reportControllers = require("../controller/reportControllers");
-const verifyToken = require("../verifyToken");
+const verifyToken = require("../middlewares/verifyToken");
+const checkPermission = require("../middlewares/checkPermission");
 
 // fetch all sale & purchase report
-router.get("/salePurchase", verifyToken, reportControllers.salePurchaseReport);
+router.get(
+  "/salePurchase",
+  verifyToken,
+  checkPermission("Report", "canView"),
+  reportControllers.salePurchaseReport
+);
 
 // fetch all report
-router.get("/sale", verifyToken, reportControllers.salePurchaseReport);
+router.get(
+  "/sale",
+  verifyToken,
+  checkPermission("Report", "canView"),
+  reportControllers.salePurchaseReport
+);
 
 module.exports = router;
