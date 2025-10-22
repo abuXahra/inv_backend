@@ -13,7 +13,12 @@ router.post(
 );
 
 // fetch all router
-router.get("/", verifyToken, purchaseController.fetchAllPurchase);
+router.get(
+  "/",
+  verifyToken,
+  checkPermission("Purchase", "canView"),
+  purchaseController.fetchAllPurchase
+);
 
 // bulk delet router
 router.delete(
