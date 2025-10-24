@@ -47,6 +47,7 @@ exports.userRegister = async (req, res) => {
         const defaultPermissions = [
           {
             module: "Product",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -54,6 +55,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Category",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -61,6 +63,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Customer",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -68,6 +71,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Sale",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: false,
@@ -75,6 +79,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Supplier",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -82,6 +87,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Purchase",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: false,
@@ -89,6 +95,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Payment",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: false,
@@ -96,6 +103,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Expense",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -103,6 +111,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Sale Return",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -110,6 +119,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Purchase Return",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -117,6 +127,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "User",
+            canVisit: true,
             canView: true,
             canAdd: true,
             canEdit: true,
@@ -124,6 +135,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Company",
+            canVisit: true,
             canView: true,
             canAdd: false,
             canEdit: false,
@@ -131,6 +143,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Tax",
+            canVisit: true,
             canView: true,
             canAdd: false,
             canEdit: false,
@@ -138,13 +151,15 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Unit",
+            canVisit: true,
             canView: true,
             canAdd: false,
             canEdit: false,
             canDelete: false,
           },
           {
-            module: "Generate/View Report",
+            module: "Report",
+            canVisit: true,
             canView: false,
             canAdd: false,
             canEdit: false,
@@ -152,6 +167,7 @@ exports.userRegister = async (req, res) => {
           },
           {
             module: "Permission",
+            canVisit: true,
             canView: false,
             canAdd: false,
             canEdit: false,

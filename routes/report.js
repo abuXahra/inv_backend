@@ -8,7 +8,7 @@ const checkPermission = require("../middlewares/checkPermission");
 router.get(
   "/salePurchase",
   verifyToken,
-  checkPermission("Generate/View Report", "canView"),
+  // checkPermission("Generate/View Report", "canView"),
   reportControllers.salePurchaseReport
 );
 
@@ -16,7 +16,7 @@ router.get(
 router.get(
   "/sale",
   verifyToken,
-  checkPermission("Generate/View Report", "canView"),
+  // checkPermission("Generate/View Report", "canView"),
   reportControllers.salePurchaseReport
 );
 

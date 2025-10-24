@@ -5,7 +5,7 @@ const User = require("../models/User");
 // ✅ Add a new module permission
 exports.addPermissionModule = async (req, res) => {
   try {
-    const { module, canView, canAdd, canEdit, canDelete } = req.body;
+    const { module, canVisit, canView, canAdd, canEdit, canDelete } = req.body;
 
     // Validate required field
     if (!module) {
@@ -21,6 +21,7 @@ exports.addPermissionModule = async (req, res) => {
     // Create new permission entry
     const permission = new Permission({
       module,
+      canVisit: canVisit || false,
       canView: canView || false,
       canAdd: canAdd || false,
       canEdit: canEdit || false,
@@ -59,6 +60,7 @@ exports.updateAllPermissions = async (req, res) => {
         { module: perm.title },
         {
           $set: {
+            canVisit: perm.visit,
             canAdd: perm.add,
             canEdit: perm.edit,
             canView: perm.view,
@@ -94,6 +96,7 @@ exports.updateAllPermissions = async (req, res) => {
         { module: perm.title },
         {
           module: perm.title,
+          canVisit: perm.visit,
           canAdd: perm.add,
           canEdit: perm.edit,
           canView: perm.view,
