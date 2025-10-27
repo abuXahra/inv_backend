@@ -25,7 +25,7 @@ router.delete(
 
 router.get(
   "/expense-total",
-  verifyToken,
+  // verifyToken,
   expenseController.getTotalExpenseAmount
 );
 

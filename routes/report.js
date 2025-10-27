@@ -17,7 +17,7 @@ router.get(
   "/sale",
   verifyToken,
   // checkPermission("Generate/View Report", "canView"),
-  reportControllers.salePurchaseReport
+  reportControllers.saleReports
 );
 
 module.exports = router;
