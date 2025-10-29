@@ -16,8 +16,9 @@ exports.userRegister = async (req, res) => {
   } = req.body;
 
   try {
-    const existingUserEmail = await User.findOne({ email });
-    const existingUsername = await User.findOne({ username });
+    // const existingUserEmail = await User.findOne({ email });
+    const existingUserEmail = email ? await User.findOne({ email }) : null;
+    const existingUsername = username ? await User.findOne({ username }) : null;
     const existingPhone = phoneNumber
       ? await User.findOne({ phoneNumber })
       : null;
