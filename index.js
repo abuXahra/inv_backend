@@ -24,6 +24,7 @@ const saleRoute = require("./routes/sale");
 const paymentRoute = require("./routes/payment");
 const saleReturnRoute = require("./routes/saleReturn");
 const purchaseReturnRoute = require("./routes/purchaseReturn");
+const wastageRoute = require("./routes/wastage");
 const reportRoute = require("./routes/report");
 const permissionRoute = require("./routes/permission");
 
@@ -62,6 +63,7 @@ app.use("/api/sale", saleRoute);
 app.use("/api/payment", paymentRoute);
 app.use("/api/saleReturn", saleReturnRoute);
 app.use("/api/purchaseReturn", purchaseReturnRoute);
+app.use("/api/wastage", wastageRoute);
 app.use("/api/reports", reportRoute);
 app.use("/api/permission", permissionRoute);
 

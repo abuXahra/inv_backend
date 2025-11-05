@@ -118,6 +118,70 @@ exports.getPayment = async (req, res) => {
   }
 };
 
+// get Sale Payments
+exports.getSalePayments = async (req, res) => {
+  try {
+    const payments = await Payment.find({
+      invoiceNo: { $regex: /^SA/i },
+    })
+      .populate("userId", "name email")
+      .lean();
+
+    const saleCodes = payments.map((p) => p.invoiceNo);
+
+    const sales = await Sale.find({ code: { $in: saleCodes } })
+      .populate("customer", "name email phone")
+      .lean();
+
+    const saleMap = new Map(sales.map((s) => [s.code, s]));
+    const enriched = payments.map((p) => ({
+      ...p,
+      customer: saleMap.get(p.invoiceNo)?.customer || null,
+    }));
+
+    res.status(200).json(enriched);
+  } catch (error) {
+    console.error("Error fetching sale payments:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// ✅ Get Purchase Payments Only
+exports.getPurchasePayments = async (req, res) => {
+  try {
+    // Find all payments whose invoiceNo starts with "PU"
+    const payments = await Payment.find({
+      invoiceNo: { $regex: /^PU/i },
+    })
+      .populate("userId", "name email") // Include user info
+      .lean();
+
+    // Extract all purchase codes from those payments
+    const purchaseCodes = payments.map((p) => p.invoiceNo);
+
+    // Find matching purchase records and populate supplier info
+    const purchases = await Purchase.find({ code: { $in: purchaseCodes } })
+      .populate("supplier", "name email phone") // Include supplier info
+      .lean();
+
+    // Map purchase info to their respective payments
+    const purchaseMap = new Map(purchases.map((p) => [p.code, p]));
+
+    const enriched = payments.map((p) => ({
+      ...p,
+      supplier: purchaseMap.get(p.invoiceNo)?.supplier || null,
+      purchaseAmount: purchaseMap.get(p.invoiceNo)?.purchaseAmount || 0,
+      paymentStatus: purchaseMap.get(p.invoiceNo)?.paymentStatus || "N/A",
+      dueBalance: purchaseMap.get(p.invoiceNo)?.dueBalance ?? p.dueBalance,
+    }));
+
+    res.status(200).json(enriched);
+  } catch (error) {
+    console.error("Error fetching purchase payments:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Update Payment
 exports.updatePayment = async (req, res) => {
   try {

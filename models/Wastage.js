@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const ReturnItemSchema = new mongoose.Schema({
+const WastageItemSchema = new mongoose.Schema({
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Product",
@@ -15,21 +15,25 @@ const ReturnItemSchema = new mongoose.Schema({
   amount: { type: Number, required: true }, // quantity * price
 });
 
-const SalesReturnSchema = new mongoose.Schema(
+const WastageSchema = new mongoose.Schema(
   {
-    code: { type: String, required: true, unique: true },
-    returnDate: { type: Date, required: true },
+    code: { type: String, required: true, unique: true }, // Return reference code
+    wastageDate: { type: Date, required: true },
 
-    sale: { type: mongoose.Schema.Types.ObjectId, ref: "Sale", required: true },
-
-    customer: {
+    // Link to the original purchase (invoice from supplier)
+    purchase: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Customer",
+      ref: "Purchase",
       required: true,
     },
 
-    returnAmount: { type: Number, required: true },
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      required: true,
+    },
 
+    wastageAmount: { type: Number, required: true },
     reason: { type: String },
     invoiceNo: { type: String },
     paymentType: {
@@ -72,7 +76,7 @@ const SalesReturnSchema = new mongoose.Schema(
       default: 0,
     },
 
-    returnItems: [ReturnItemSchema],
+    wastageItems: [WastageItemSchema],
 
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -83,4 +87,4 @@ const SalesReturnSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("SalesReturn", SalesReturnSchema);
+module.exports = mongoose.model("Wastage", WastageSchema);

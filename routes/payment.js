@@ -12,6 +12,9 @@ router.post(
 );
 router.get("/", verifyToken, paymentController.getPayments);
 
+router.get("/sale", verifyToken, paymentController.getSalePayments);
+router.get("/purchase", verifyToken, paymentController.getPurchasePayments);
+
 router.delete(
   "/bulk-delete",
   verifyToken,

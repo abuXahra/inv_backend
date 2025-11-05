@@ -108,6 +108,20 @@ exports.fetchProducts = async (req, res) => {
   }
 };
 
+// GET ALL Products
+exports.fetchProductReport = async (req, res) => {
+  try {
+    const products = await Product.find()
+      .populate({ path: "unit", select: "title" })
+      .populate({ path: "category", select: "title" })
+      .sort({ stockQuantity: 1 })
+      .lean();
+    res.status(200).json(products);
+  } catch (err) {
+    res.status(500).json(err);
+  }
+};
+
 // GET product detail
 exports.fetchProduct = async (req, res) => {
   try {
@@ -192,6 +206,7 @@ exports.fetchLowStockProducts = async (req, res) => {
     })
       .populate({ path: "unit", select: "title" })
       .populate({ path: "category", select: "title" })
+      .sort({ stockQuantity: 1 }) // ✅ ascending order (use -1 for descending)
       .lean();
 
     res.status(200).json(products);

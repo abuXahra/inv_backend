@@ -12,7 +12,7 @@ router.post(
 );
 
 router.get("/", verifyToken, productController.fetchProducts);
-
+router.get("/report", verifyToken, productController.fetchProductReport);
 router.get("/low-stock", verifyToken, productController.fetchLowStockProducts);
 
 // add bulk delete route before the dynamic route
