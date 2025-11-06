@@ -1,355 +1,155 @@
 const mongoose = require("mongoose");
 const Wastage = require("../models/Wastage");
-const Purchase = require("../models/Purchase");
 const Product = require("../models/Product");
 
-// Helper: Generate Code
-const generateWastageCode = async (prefix) => {
-  const lastWaste = await Wastage.findOne({
-    code: { $regex: `^${prefix}` },
-  })
-    .sort({ code: -1 })
-    .exec();
+// ✅ Create wastage (single or multiple)
+exports.createWastage = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  let lastSerial = 0;
-  if (lastWaste && lastWaste.code) {
-    const match = lastWaste.code.match(/\d+$/);
-    if (match) lastSerial = parseInt(match[0], 10);
-  }
-  const serial = (lastSerial + 1).toString().padStart(4, "0");
-  return `${prefix}${serial}`;
-};
-
-// 📌 Register Wastage
-exports.WastageRegister = async (req, res) => {
   try {
-    const {
-      wastageDate,
-      purchaseId,
-      supplier,
-      wastageAmount,
-      reason,
-      invoiceNo,
-      paymentType,
-      paymentStatus,
-      amountPaid,
-      dueBalance,
-      subTotal,
-      otherCharges,
-      discount,
-      discountValue,
-      shipping,
-      wastageItems = [],
-      prefix,
-      userId,
-    } = req.body;
+    const data = req.body;
+    const prefix = data.prefix;
 
-    // 1️⃣ Find original purchase
-    const purchase = await Purchase.findById(purchaseId);
-    if (!purchase)
-      return res.status(404).json({ message: "purchase not found" });
+    // Find last wastage with same prefix
+    const lastWastage = await Wastage.findOne({
+      code: { $regex: `^${prefix}` },
+    })
+      .sort({ code: -1 })
+      .exec();
 
-    // 2️⃣ Validate waste items
-    for (const item of wastageItems) {
-      const soldItem = purchase.purchaseItems.find(
-        (si) => si.productId.toString() === item.productId
-      );
-
-      if (!soldItem) {
-        return res.status(400).json({
-          message: `Product ${item.title} was not sold in this purchase`,
-        });
-      }
-
-      if (item.quantity > soldItem.quantity) {
-        return res.status(400).json({
-          message: `Cannot return more than sold quantity for ${item.title}`,
-        });
+    let lastSerial = 0;
+    if (lastWastage && lastWastage.code) {
+      const match = lastWastage.code.match(/\d+$/);
+      if (match) {
+        lastSerial = parseInt(match[0], 10);
       }
     }
 
-    // 3️⃣ Generate Wastage code
-    const code = await generateWastageCode(prefix);
+    // 🧮 Helper: adjust stock
+    const adjustProductStock = async (productId, qtyChange, wasteChange) => {
+      const product = await Product.findById(productId).session(session);
+      if (!product) throw new Error("Product not found");
+      product.stockQuantity += qtyChange; // qtyChange will be negative for wastage creation
+      product.wasteQuantity += wasteChange;
+      await product.save({ session });
+    };
 
-    // 4️⃣ Clean items
-    const cleanedItems = wastageItems.map((item) => ({
-      productId: item.productId,
-      title: item.title,
-      quantity: Number(item.quantity),
-      unitCost: Number(item.unitCost),
-      price: Number(item.price),
-      tax: Number(item.tax),
-      taxAmount: Number(item.taxAmount),
-      amount: Number(item.amount),
-    }));
+    let savedWastages = [];
 
-    // 5️⃣ Save Wastage record
-    const newWastage = new Wastage({
-      code,
-      wastageDate,
-      purchase: purchaseId,
-      supplier,
-      wastageAmount,
-      invoiceNo,
-      paymentType,
-      paymentStatus,
-      amountPaid,
-      dueBalance,
-      subTotal,
-      otherCharges,
-      discount,
-      discountValue,
-      shipping,
-      reason,
-      wastageItems: cleanedItems,
-      userId,
-    });
+    if (Array.isArray(data.items)) {
+      // 🔁 For multiple wastage items
+      const newWastages = data.items.map((item, index) => {
+        const serial = (lastSerial + index + 1).toString().padStart(4, "0");
+        const code = `${prefix}${serial}`;
+        return { ...item, code };
+      });
 
-    await newWastage.save();
+      // Save wastages and adjust product stock
+      savedWastages = await Wastage.insertMany(newWastages, { session });
 
-    // 6️⃣ Update stock
-    for (const item of cleanedItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        {
-          $inc: {
-            // purchaseReturnQuantity: item.quantity,
-            // purchaseQuantity: -item.quantity,
-            stockQuantity: -item.quantity,
-          }, // reduce sold
-        },
-        { new: true }
-      );
-    }
-
-    res
-      .status(200)
-      .json({ message: "purchase return created", return: newWastage });
-  } catch (error) {
-    console.error("❌ purchase Return Register Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
-  }
-};
-
-// 📌 Fetch Single Wastage
-exports.fetchWastage = async (req, res) => {
-  try {
-    const wastage = await Wastage.findById(req.params.wastageId)
-      .populate("purchase", "code purchaseAmount")
-      .populate("supplier", "name")
-      .populate("userId", "username");
-
-    if (!wastage) return res.status(404).json({ message: "Wastage not found" });
-
-    res.status(200).json(wastage);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
-  }
-};
-
-// 📌 Fetch All Wastage
-exports.fetchAllWastage = async (req, res) => {
-  try {
-    const wastage = await Wastage.find({})
-      .populate("purchase", "code purchaseAmount")
-      .populate("supplier", "name")
-      .populate("userId", "username");
-
-    res.status(200).json(wastage);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
-  }
-};
-
-// 📌 Update wastage
-exports.updateWastage = async (req, res) => {
-  try {
-    const { wastageId } = req.params;
-    const {
-      wastageDate,
-      purchaseId,
-      supplier,
-      wastageAmount,
-      invoiceNo,
-      reason,
-      paymentType,
-      paymentStatus,
-      amountPaid,
-      dueBalance,
-      subTotal,
-      otherCharges,
-      discount,
-      discountValue,
-      shipping,
-      wastageItems = [],
-      userId,
-    } = req.body;
-
-    const wastage = await Wastage.findById(wastageId);
-    if (!wastage) return res.status(404).json({ message: "wastage not found" });
-
-    // 🔄 Step 1: Rollback old stock
-    for (const oldItem of wastage.returnItems) {
-      await Product.findByIdAndUpdate(
-        oldItem.productId,
-        {
-          $inc: {
-            // purchaseReturnQuantity: -oldItem.quantity,
-            // purchaseQuantity: oldItem.quantity,
-            stockQuantity: -oldItem.quantity,
-          },
-        },
-        { new: true }
-      );
-    }
-
-    // 🔍 Step 2: Validate new return items
-    const wastageB = await Wastage.findById(wastageId || wastage.purchase);
-    if (!wastageB) {
-      return res.status(404).json({ message: "Related purchase not found" });
-    }
-
-    for (const item of wastageItems) {
-      const wastedItem = wastage.wastageItems.find(
-        (si) => si.productId.toString() === item.productId
-      );
-      if (!wastedItem) {
-        return res
-          .status(400)
-          .json({ message: `Product ${item.title} not found in purchase` });
+      for (const item of newWastages) {
+        await adjustProductStock(item.productId, -item.quantity, item.quantity);
       }
-      if (item.quantity > wastedItem.quantity) {
-        return res.status(400).json({
-          message: `Cannot return more than sold quantity for ${item.title}`,
-        });
-      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.status(201).json({
+        message: "Wastages added successfully",
+        wastages: savedWastages,
+      });
     }
 
-    // 📦 Step 3: Apply new stock
-    for (const item of wastageItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        {
-          $inc: {
-            // purchaseReturnQuantity: item.quantity,
-            // purchaseQuantity: -item.quantity,
-            stockQuantity: -item.quantity,
-          },
-        },
-        { new: true }
-      );
-    }
+    // 🧾 Single wastage item
+    const serial = (lastSerial + 1).toString().padStart(4, "0");
+    const code = `${prefix}${serial}`;
+    const newWastage = new Wastage({ ...data, code });
 
-    // 📝 Step 4: Update purchase return record
-    wastage.wastageDate = returnDate || wastage.wastageDate;
-    wastage.purchase = purchaseId || wastage.purchase;
-    wastage.supplier = supplier || wastage.supplier;
-    wastage.wastageAmount = returnAmount || wastage.wastageAmount;
-    wastage.invoiceNo = invoiceNo || wastage.invoiceNo;
-    wastage.reason = reason || wastage.reason;
-    wastage.paymentType = paymentType || wastage.paymentType;
-    wastage.paymentStatus = paymentStatus || wastage.paymentStatus;
-    wastage.amountPaid = amountPaid || wastage.amountPaid;
-    wastage.dueBalance = dueBalance || wastage.dueBalance;
-    wastage.subTotal = subTotal || wastage.subTotal;
-    wastage.otherCharges = otherCharges || wastage.otherCharges;
-    wastage.discount = discount || wastage.discount;
-    wastage.discountValue = discountValue || wastage.discountValue;
-    wastage.shipping = shipping || wastage.shipping;
-    wastage.wastageItems = wastageItems;
-    wastage.userId = userId || wastage.userId;
+    const savedWastage = await newWastage.save({ session });
+    await adjustProductStock(data.productId, -data.quantity, data.quantity);
 
-    await wastage.save();
+    await session.commitTransaction();
+    session.endSession();
 
-    res.status(200).json({
-      message: "wastage  updated successfully",
-      return: wastage,
+    res.status(201).json({
+      message: "Wastage added successfully",
+      wastage: savedWastage,
     });
   } catch (error) {
-    console.error("❌ Update purchase Return Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error creating wastage:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// 📌 Delete Wastage Return
+// ✅ Delete a single wastage and reverse product stock
 exports.deleteWastage = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { wastageId } = req.params;
-
-    const wastage = await Wastage.findById(wastageId);
-    if (!wastage) return res.status(404).json({ message: "wastage not found" });
-
-    // Rollback stock (remove returned qty from stock)
-    for (const item of wastage.wastageItems) {
-      await Product.findByIdAndUpdate(
-        item.productId,
-        {
-          $inc: {
-            // purchaseReturnQuantity: -item.quantity,
-            // purchaseQuantity: item.quantity,
-            stockQuantity: item.quantity,
-          }, // + added
-        },
-        { new: true }
-      );
+    const wastage = await Wastage.findById(req.params.id).session(session);
+    if (!wastage) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Wastage not found" });
     }
 
-    await wastage.deleteOne();
+    const product = await Product.findById(wastage.productId).session(session);
+    if (product) {
+      product.stockQuantity += wastage.quantity;
+      product.wasteQuantity -= wastage.quantity;
+      await product.save({ session });
+    }
 
-    res.status(200).json({ message: "wastage deleted and sale restored" });
+    await wastage.deleteOne({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ message: "Wastage deleted successfully" });
   } catch (error) {
-    console.error("❌ Delete wastage Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error deleting wastage:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-// 📌 Bulk Delete wastage
+// ✅ Bulk delete wastages and reverse product stock for all
 exports.bulkDeleteWastage = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { ids } = req.body; // array of return IDs
+    const { ids } = req.body;
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "No return IDs provided" });
+      return res.status(400).json({ message: "No wastage IDs provided" });
     }
 
-    const wastages = await Wastage.find({ _id: { $in: ids } });
+    const wastages = await Wastage.find({ _id: { $in: ids } }).session(session);
 
-    for (const wastage of wastages) {
-      // 1️⃣ Rollback stock in Product
-      for (const item of wastage.wastageItems) {
-        await Product.findByIdAndUpdate(
-          item.productId,
-          {
-            $inc: {
-              //   purchaseReturnQuantity: -item.quantity,
-              //   purchaseQuantity: item.quantity,
-              stockQuantity: item.quantity,
-            },
-          },
-          { new: true }
-        );
+    for (const w of wastages) {
+      const product = await Product.findById(w.productId).session(session);
+      if (product) {
+        product.stockQuantity += w.quantity;
+        product.wasteQuantity -= w.quantity;
+        await product.save({ session });
       }
-
-      // 3️⃣ Delete the return
-      await wastage.deleteOne();
     }
 
-    res
-      .status(200)
-      .json({ message: "Selected purchase returns deleted successfully" });
+    await Wastage.deleteMany({ _id: { $in: ids } }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ message: "Selected wastages deleted successfully" });
   } catch (error) {
-    console.error("❌ Bulk Delete purchase Returns Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error deleting wastages:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

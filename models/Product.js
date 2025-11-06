@@ -91,6 +91,8 @@ const ProductSchema = new mongoose.Schema({
   saleReturnQuantity: { type: Number, default: 0 },
   purchaseReturnQuantity: { type: Number, default: 0 },
   stockQuantity: { type: Number, default: 0 }, // New non-virtual field
+  wasteQuantity: { type: Number, default: 0 }, // New non-virtual field
+
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
