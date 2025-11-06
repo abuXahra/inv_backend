@@ -9,11 +9,11 @@ router.post(
   "/create",
   verifyToken,
   checkPermission("Wastage", "canAdd"),
-  wastageController.WastageRegister
+  wastageController.createWastage
 ); //1
 
 // fetch all router
-router.get("/", verifyToken, wastageController.fetchAllWastage);
+// router.get("/", verifyToken, wastageController.fetchAllWastage);
 
 // bulk delete router
 router.delete(
@@ -23,21 +23,21 @@ router.delete(
   wastageController.bulkDeleteWastage
 ); //4
 
-// update router
-router.put(
-  "/:wastageId",
-  verifyToken,
-  checkPermission("Wastage", "canEdit"),
-  wastageController.updateWastage
-); //2
+// // update router
+// router.put(
+//   "/:wastageId",
+//   verifyToken,
+//   checkPermission("Wastage", "canEdit"),
+//   wastageController.updateWastage
+// ); //2
 
-// fetch router
-router.get(
-  "/:wastageId",
-  verifyToken,
-  checkPermission("Wastage", "canView"),
-  wastageController.fetchWastage
-);
+// // fetch router
+// router.get(
+//   "/:wastageId",
+//   verifyToken,
+//   checkPermission("Wastage", "canView"),
+//   wastageController.fetchWastage
+// );
 
 // delete router
 router.delete(

@@ -30,7 +30,7 @@ exports.createWastage = async (req, res) => {
     const adjustProductStock = async (productId, qtyChange, wasteChange) => {
       const product = await Product.findById(productId).session(session);
       if (!product) throw new Error("Product not found");
-      product.stockQuantity += qtyChange; // qtyChange will be negative for wastage creation
+      product.stockQuantity = qtyChange; // qtyChange will be negative for wastage creation
       product.wasteQuantity += wasteChange;
       await product.save({ session });
     };
