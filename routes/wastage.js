@@ -13,14 +13,14 @@ router.post(
 ); //1
 
 // fetch all router
-// router.get("/", verifyToken, wastageController.fetchAllWastage);
+router.get("/", verifyToken, wastageController.fetchAWastage);
 
 // bulk delete router
 router.delete(
   "/bulk-delete",
   verifyToken,
   checkPermission("Wastage", "canDelete"),
-  wastageController.bulkDeleteWastage
+  wastageController.bulkDeleteWastages
 ); //4
 
 // // update router

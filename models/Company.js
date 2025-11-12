@@ -37,6 +37,10 @@ const PrefixSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  wastage: {
+    type: String,
+    required: true,
+  },
 });
 
 const CompanySchema = new mongoose.Schema(

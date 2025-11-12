@@ -1,17 +1,73 @@
-const mongoose = require("mongoose");
 const Wastage = require("../models/Wastage");
 const Product = require("../models/Product");
+const Purchase = require("../models/Purchase");
 
-// ✅ Create wastage (single or multiple)
+// @desc Create one or multiple wastage records
+// @route POST /api/wastage
+// @access Private
+// create Expense width expenses Initial
+exports.createWastage1 = async (req, res) => {
+  try {
+    const data = req.body;
+    const prefix = data.prefix;
+
+    // Find the last expense with the same prefix
+    const lastWastage = await Wastage.findOne({
+      code: { $regex: `^${prefix}` },
+    })
+      .sort({ code: -1 })
+      .exec();
+
+    let lastSerial = 0;
+
+    if (lastWastage && lastWastage.code) {
+      const match = lastWastage.code.match(/\d+$/); // Extract the numeric part from the code
+      if (match) {
+        lastSerial = parseInt(match[0], 10);
+      }
+    }
+
+    // For multiple items
+    if (Array.isArray(data.items)) {
+      const newWastages = data.items.map((item, index) => {
+        const serial = (lastSerial + index + 1).toString().padStart(4, "0");
+        const code = `${prefix}${serial}`;
+        return { ...item, code };
+      });
+
+      const savedWastages = await Wastage.insertMany(newWastages);
+      return res.status(201).json({
+        message: "Wastage added successfully",
+        wastage: savedWastages,
+      });
+    }
+
+    // For single item
+    const serial = (lastSerial + 1).toString().padStart(4, "0");
+    const code = `${prefix}${serial}`;
+
+    const newWastage = new Wastage({ ...data, code });
+    const savedWastage = await newWastage.save();
+
+    res.status(201).json({
+      message: "Wastage added successfully",
+      expense: savedWastage,
+    });
+  } catch (error) {
+    console.error("Error creating expense:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 exports.createWastage = async (req, res) => {
-  const session = await mongoose.startSession();
+  const session = await Wastage.startSession();
   session.startTransaction();
 
   try {
     const data = req.body;
     const prefix = data.prefix;
 
-    // Find last wastage with same prefix
+    // Find last wastage for code sequence
     const lastWastage = await Wastage.findOne({
       code: { $regex: `^${prefix}` },
     })
@@ -21,53 +77,62 @@ exports.createWastage = async (req, res) => {
     let lastSerial = 0;
     if (lastWastage && lastWastage.code) {
       const match = lastWastage.code.match(/\d+$/);
-      if (match) {
-        lastSerial = parseInt(match[0], 10);
-      }
+      if (match) lastSerial = parseInt(match[0], 10);
     }
 
-    // 🧮 Helper: adjust stock
-    const adjustProductStock = async (productId, qtyChange, wasteChange) => {
-      const product = await Product.findById(productId).session(session);
-      if (!product) throw new Error("Product not found");
-      product.stockQuantity = qtyChange; // qtyChange will be negative for wastage creation
-      product.wasteQuantity += wasteChange;
-      await product.save({ session });
-    };
-
-    let savedWastages = [];
-
+    // For multiple wastage items
     if (Array.isArray(data.items)) {
-      // 🔁 For multiple wastage items
-      const newWastages = data.items.map((item, index) => {
-        const serial = (lastSerial + index + 1).toString().padStart(4, "0");
+      const newWastages = [];
+
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        const serial = (lastSerial + i + 1).toString().padStart(4, "0");
         const code = `${prefix}${serial}`;
-        return { ...item, code };
-      });
+        const newItem = { ...item, code };
+        newWastages.push(newItem);
 
-      // Save wastages and adjust product stock
-      savedWastages = await Wastage.insertMany(newWastages, { session });
-
-      for (const item of newWastages) {
-        await adjustProductStock(item.productId, -item.quantity, item.quantity);
+        // Update Product stock & wastage quantity
+        await Product.findByIdAndUpdate(
+          item.productId,
+          {
+            $inc: {
+              stockQuantity: -item.quantity,
+              wasteQuantity: item.quantity,
+            },
+          },
+          { session }
+        );
       }
+
+      const savedWastages = await Wastage.insertMany(newWastages, { session });
 
       await session.commitTransaction();
       session.endSession();
 
       return res.status(201).json({
         message: "Wastages added successfully",
-        wastages: savedWastages,
+        wastage: savedWastages,
       });
     }
 
-    // 🧾 Single wastage item
+    // Single wastage case
     const serial = (lastSerial + 1).toString().padStart(4, "0");
     const code = `${prefix}${serial}`;
-    const newWastage = new Wastage({ ...data, code });
 
+    const newWastage = new Wastage({ ...data, code });
     const savedWastage = await newWastage.save({ session });
-    await adjustProductStock(data.productId, -data.quantity, data.quantity);
+
+    // Update Product stock & wastage quantity
+    await Product.findByIdAndUpdate(
+      data.productId,
+      {
+        $inc: {
+          stockQuantity: -data.quantity,
+          wasteQuantity: data.quantity,
+        },
+      },
+      { session }
+    );
 
     await session.commitTransaction();
     session.endSession();
@@ -79,32 +144,45 @@ exports.createWastage = async (req, res) => {
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
+
     console.error("Error creating wastage:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ✅ Delete a single wastage and reverse product stock
+// get all Wastage
+exports.fetchAWastage = async (req, res) => {
+  try {
+    const wastage = await Wastage.find({});
+    res.status(200).json(wastage);
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 exports.deleteWastage = async (req, res) => {
-  const session = await mongoose.startSession();
+  const wastageId = req.params.wastageId;
+  const session = await Wastage.startSession();
   session.startTransaction();
 
   try {
-    const wastage = await Wastage.findById(req.params.id).session(session);
+    const wastage = await Wastage.findById(wastageId);
     if (!wastage) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({ message: "Wastage not found" });
     }
 
-    const product = await Product.findById(wastage.productId).session(session);
-    if (product) {
-      product.stockQuantity += wastage.quantity;
-      product.wasteQuantity -= wastage.quantity;
-      await product.save({ session });
-    }
+    await Product.findByIdAndUpdate(
+      wastage.productId,
+      {
+        $inc: {
+          stockQuantity: wastage.quantity,
+          wasteQuantity: -wastage.quantity,
+        },
+      },
+      { session }
+    );
 
-    await wastage.deleteOne({ session });
+    await Wastage.findByIdAndDelete(wastageId, { session });
 
     await session.commitTransaction();
     session.endSession();
@@ -118,38 +196,37 @@ exports.deleteWastage = async (req, res) => {
   }
 };
 
-// ✅ Bulk delete wastages and reverse product stock for all
-exports.bulkDeleteWastage = async (req, res) => {
-  const session = await mongoose.startSession();
+exports.bulkDeleteWastages = async (req, res) => {
+  const { ids } = req.body; // expect array of wastage IDs
+  const session = await Wastage.startSession();
   session.startTransaction();
 
   try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "No wastage IDs provided" });
+    const wastages = await Wastage.find({ _id: { $in: ids } });
+
+    for (const wastage of wastages) {
+      await Product.findByIdAndUpdate(
+        wastage.productId,
+        {
+          $inc: {
+            stockQuantity: wastage.quantity,
+            wasteQuantity: -wastage.quantity,
+          },
+        },
+        { session }
+      );
     }
 
-    const wastages = await Wastage.find({ _id: { $in: ids } }).session(session);
-
-    for (const w of wastages) {
-      const product = await Product.findById(w.productId).session(session);
-      if (product) {
-        product.stockQuantity += w.quantity;
-        product.wasteQuantity -= w.quantity;
-        await product.save({ session });
-      }
-    }
-
-    await Wastage.deleteMany({ _id: { $in: ids } }).session(session);
+    await Wastage.deleteMany({ _id: { $in: ids } }, { session });
 
     await session.commitTransaction();
     session.endSession();
 
-    res.status(200).json({ message: "Selected wastages deleted successfully" });
+    res.status(200).json({ message: "Wastages deleted successfully" });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error("Error deleting wastages:", error);
+    console.error("Error bulk deleting wastages:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

@@ -2,36 +2,24 @@ const mongoose = require("mongoose");
 
 const WastageSchema = new mongoose.Schema(
   {
-    code: { type: String, required: true, unique: true }, // Return reference code
+    code: { type: String, required: true, unique: true },
     wastageDate: { type: Date, required: true },
-
-    // Link to the original purchase (invoice from supplier)
-    purchase: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Purchase",
-      required: true,
-    },
-
-    supplier: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Supplier",
-      required: true,
-    },
-
-    reason: { type: String },
+    purchaseId: { type: mongoose.Schema.Types.ObjectId, ref: "Purchase" },
+    supplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier" },
     invoiceNo: { type: String },
+    reason: { type: String },
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
       required: true,
     },
-    title: { type: String, required: true },
+    title: { type: String },
     quantity: { type: Number, required: true },
-    tax: { type: Number, required: true },
-    taxAmount: { type: Number, required: true },
-    unitCost: { type: Number, required: true },
-    price: { type: Number, required: true },
-    amount: { type: Number, required: true },
+    price: { type: Number },
+    tax: { type: Number },
+    taxAmount: { type: Number },
+    unitCost: { type: Number },
+    amount: { type: Number },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

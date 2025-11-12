@@ -20,4 +20,6 @@ router.get(
   reportControllers.saleReports
 );
 
+router.get("/daily-sale", verifyToken, reportControllers.getProductSalesReport);
+
 module.exports = router;
