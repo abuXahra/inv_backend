@@ -14,6 +14,7 @@ router.post(
 router.get("/", verifyToken, productController.fetchProducts);
 router.get("/report", verifyToken, productController.fetchProductReport);
 router.get("/low-stock", verifyToken, productController.fetchLowStockProducts);
+router.get("/stock-amount", verifyToken, productController.getTotalStockAmount);
 
 // add bulk delete route before the dynamic route
 

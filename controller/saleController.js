@@ -1,5 +1,6 @@
 const { default: mongoose } = require("mongoose");
 const Sale = require("../models/Sale");
+const SalesReturn = require("../models/SaleReturn");
 const Product = require("../models/Product");
 
 // register sale data
@@ -159,6 +160,7 @@ exports.fetchSale = async (req, res) => {
 exports.fetchAllSale = async (req, res) => {
   try {
     const sale = await Sale.find({})
+
       .populate({
         path: "userId",
         select: "username",
@@ -166,7 +168,8 @@ exports.fetchAllSale = async (req, res) => {
       .populate({
         path: "customer",
         select: "name",
-      });
+      })
+      .sort({ createdAt: -1 });
     res.status(200).json(sale);
   } catch (err) {
     res.status(500).json(err);
@@ -439,5 +442,65 @@ exports.getTotalSaleAmount = async (req, res) => {
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+// Total amout paid
+exports.getTotalAmountPaid = async (req, res) => {
+  try {
+    const result = await Sale.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalAmountPaid: { $sum: "$amountPaid" },
+        },
+      },
+    ]);
+
+    const totalAmountPaid = result.length > 0 ? result[0].totalAmountPaid : 0;
+
+    res.status(200).json({
+      success: true,
+      totalAmountPaid,
+    });
+  } catch (error) {
+    console.error("Error fetching total amount paid:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+// Total outstanding sale:
+exports.getTotalOutstandingSales = async (req, res) => {
+  try {
+    // 1️⃣ Get total outstanding from Sales
+    const result = await Sale.aggregate([
+      {
+        $match: {
+          paymentStatus: { $in: ["unpaid", "partial"] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalOutstanding: { $sum: "$dueBalance" },
+        },
+      },
+    ]);
+
+    const totalOutstanding = result.length > 0 ? result[0].totalOutstanding : 0;
+
+    res.status(200).json({
+      success: true,
+      totalOutstanding,
+    });
+  } catch (error) {
+    console.error("Error fetching outstanding payments:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };

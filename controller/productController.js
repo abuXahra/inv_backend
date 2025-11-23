@@ -214,3 +214,66 @@ exports.fetchLowStockProducts = async (req, res) => {
     res.status(500).json(err);
   }
 };
+
+// Total stock amounts:
+exports.getTotalStockAmount = async (req, res) => {
+  try {
+    const result = await Product.aggregate([
+      {
+        $project: {
+          stockValue: { $multiply: ["$stockQuantity", "$salePrice"] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalStockAmount: { $sum: "$stockValue" },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      totalStockAmount: result[0]?.totalStockAmount || 0,
+    });
+  } catch (error) {
+    console.error("Error fetching total stock amount:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// exports.getTotalStockAmount = async (req, res) => {
+//   try {
+//     const result = await Product.aggregate([
+//       {
+//         $match: {
+//           stockQuantity: { $gt: 0 },
+//           status: "ON",
+//         },
+//       },
+//       {
+//         $group: {
+//           _id: null,
+//           totalStockQuantity: { $sum: "$stockQuantity" },
+//           totalSalePrice: { $sum: "$salePrice" },
+//         },
+//       },
+//       {
+//         $project: {
+//           _id: 0,
+//           totalStockAmount: {
+//             $multiply: ["$totalStockQuantity", "$totalSalePrice"],
+//           },
+//         },
+//       },
+//     ]);
+
+//     res.status(200).json({
+//       success: true,
+//       totalStockAmount: result[0]?.productOfTotals,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: "Server Error" });
+//   }
+// };

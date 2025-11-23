@@ -1,6 +1,5 @@
 const Wastage = require("../models/Wastage");
 const Product = require("../models/Product");
-const Purchase = require("../models/Purchase");
 
 // @desc Create one or multiple wastage records
 // @route POST /api/wastage
@@ -228,5 +227,31 @@ exports.bulkDeleteWastages = async (req, res) => {
     session.endSession();
     console.error("Error bulk deleting wastages:", error);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.getTotalWastageAmount = async (req, res) => {
+  try {
+    const result = await Wastage.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalWastage: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const total = result.length > 0 ? result[0].totalWastage : 0;
+
+    res.status(200).json({
+      success: true,
+      totalWastageAmount: total,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch total wastage amount",
+      error: err.message,
+    });
   }
 };

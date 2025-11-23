@@ -160,7 +160,9 @@ exports.fetchAllPurchase = async (req, res) => {
       .populate({
         path: "supplier",
         select: "name",
-      });
+      })
+      .sort({ createdAt: -1 });
+
     res.status(200).json(purchase);
   } catch (err) {
     res.status(500).json(err);
@@ -433,5 +435,40 @@ exports.getTotalPurchaseAmount = async (req, res) => {
     res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+
+// Total outstanding puchase:
+exports.getTotalOutstandingPurchasePayment = async (req, res) => {
+  try {
+   
+    const result = await Purchase.aggregate([
+      {
+        $match: {
+              // remove if not filtering by user
+          paymentStatus: { $in: ["unpaid", "partial"] }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalOutstanding: { $sum: "$dueBalance" }
+        }
+      }
+    ]);
+
+    const totalOutstanding = result.length > 0 ? result[0].totalOutstanding : 0;
+
+    res.status(200).json({
+      success: true,
+      totalOutstanding,
+    });
+  } catch (error) {
+    console.error("Error fetching outstanding payments:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };

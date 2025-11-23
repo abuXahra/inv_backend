@@ -122,6 +122,22 @@ exports.purchaseReturnRegister = async (req, res) => {
       );
     }
 
+    // Update Purchase.purchseItems quantities
+    purchase.purchaseItems = purchase.purchaseItems.map((si) => {
+      const returnedItem = cleanedItems.find(
+        (ri) => ri.productId.toString() === si.productId.toString()
+      );
+      if (returnedItem) {
+        return {
+          ...si.toObject(),
+          quantity: si.quantity - returnedItem.quantity,
+        };
+      }
+      return si;
+    });
+
+    await purchase.save();
+
     res
       .status(200)
       .json({ message: "purchase return created", return: newReturn });
@@ -309,6 +325,25 @@ exports.deletePurchaseReturn = async (req, res) => {
       );
     }
 
+    // Restore sale.saleItems quantities
+    const purchase = await Purchase.findById(purchaseReturn.purchase);
+    if (purchase) {
+      purchase.purchaseItems = purchase.purchaseItems.map((si) => {
+        const returnedItem = purchaseReturn.returnItems.find(
+          (ri) => ri.productId.toString() === si.productId.toString()
+        );
+
+        if (returnedItem) {
+          return {
+            ...si.toObject(),
+            quantity: si.quantity + returnedItem.quantity,
+          };
+        }
+        return si;
+      });
+      await purchase.save();
+    }
+
     await purchaseReturn.deleteOne();
 
     res
@@ -346,24 +381,6 @@ exports.bulkDeletePurchaseReturn = async (req, res) => {
           },
           { new: true }
         );
-      }
-
-      // 2️⃣ Restore quantities back into original Sale.saleItems
-      const purchase = await Purchase.findById(PurchaseReturn.purchase);
-      if (purchase) {
-        purchaseReturn.purchaseItems = purchase.purchaseItems.map((si) => {
-          const returnedItem = purchaseReturn.returnItems.find(
-            (ri) => ri.productId.toString() === si.productId.toString()
-          );
-          if (returnedItem) {
-            return {
-              ...si.toObject(),
-              quantity: si.quantity + returnedItem.quantity,
-            };
-          }
-          return si;
-        });
-        await purchase.save();
       }
 
       // 3️⃣ Delete the return

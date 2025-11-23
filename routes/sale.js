@@ -15,16 +15,24 @@ router.post(
 // fetch all router
 router.get("/", verifyToken, saleController.fetchAllSale);
 
+// bulk delete router
+router.delete(
+  "/bulk-delete",
+  verifyToken,
+  checkPermission("Sale", "canDelete"),
+  saleController.bulkDeleteSale
+);
+
 router.get("/payable", verifyToken, saleController.getPayableSales);
 
 router.get("/total-sale", verifyToken, saleController.getTotalSaleAmount);
 
-// bulk delete router
-router.delete(
-  "/bulk-delete",
-  checkPermission("Sale", "canDelete"),
+// router.get("/total-paid", verifyToken, saleController.getTotalAmountPaid);
+
+router.get(
+  "/outstanding-sale",
   verifyToken,
-  saleController.bulkDeleteSale
+  saleController.getTotalOutstandingSales
 );
 
 // update router

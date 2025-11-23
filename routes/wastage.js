@@ -23,6 +23,12 @@ router.delete(
   wastageController.bulkDeleteWastages
 ); //4
 
+router.get(
+  "/total-waste",
+  verifyToken,
+  wastageController.getTotalWastageAmount
+);
+
 // // update router
 // router.put(
 //   "/:wastageId",

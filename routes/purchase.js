@@ -29,6 +29,12 @@ router.get(
   purchaseController.getTotalPurchaseAmount
 );
 
+router.get(
+  "/outstanding-purchase",
+  verifyToken,
+  purchaseController.getTotalOutstandingPurchasePayment
+);
+
 // update router
 router.put(
   "/:purchaseId",
