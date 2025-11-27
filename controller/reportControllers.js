@@ -130,10 +130,13 @@ exports.saleReports = async (req, res) => {
 
 exports.getProductSalesReport = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    console.log("REQ QUERY:", req.query);
+
+    const { startDate, endDate, productId } = req.query;
+
+    const matchStage = {};
 
     // Optional date filter
-    const matchStage = {};
     if (startDate && endDate) {
       matchStage.saleDate = {
         $gte: new Date(startDate),
@@ -141,11 +144,19 @@ exports.getProductSalesReport = async (req, res) => {
       };
     }
 
+    // Optional product filter
+    if (productId) {
+      matchStage["saleItems.productId"] = new mongoose.Types.ObjectId(
+        productId
+      );
+    }
+
     const report = await Sale.aggregate([
-      { $match: matchStage },
       { $unwind: "$saleItems" },
 
-      // Lookup Product Info
+      { $match: matchStage },
+
+      // Lookup product
       {
         $lookup: {
           from: "products",
@@ -156,7 +167,7 @@ exports.getProductSalesReport = async (req, res) => {
       },
       { $unwind: "$product" },
 
-      // Lookup Customer Info
+      // Lookup customer
       {
         $lookup: {
           from: "customers",
@@ -172,12 +183,14 @@ exports.getProductSalesReport = async (req, res) => {
           _id: {
             productId: "$product._id",
             customerId: "$customer._id",
-            saleCode: "$code", // invoice code
+            saleCode: "$code",
           },
           invoiceCode: { $first: "$code" },
           productCode: { $first: "$product.code" },
           productTitle: { $first: "$product.title" },
           customerName: { $first: "$customer.name" },
+          tax: { $first: "$product.tax" },
+          salePrice: { $first: "$product.salePrice" },
           saleDates: { $addToSet: "$saleDate" },
           totalQuantitySold: { $sum: "$saleItems.quantity" },
           totalSalesAmount: { $sum: "$saleItems.amount" },

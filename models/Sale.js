@@ -59,7 +59,11 @@ const SaleSchema = new mongoose.Schema(
       enum: ["pending", "completed"],
       default: "pending",
     },
-    reference: {
+
+    walkingCustomerEmail: {
+      type: String,
+    },
+    walkingCustomerNumber: {
       type: String,
     },
 
