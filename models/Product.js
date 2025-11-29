@@ -1,4 +1,6 @@
 const mongoose = require("mongoose");
+const sendEmail = require("../utils/sendMail");
+const Company = require("../models/Company");
 
 const ProductSchema = new mongoose.Schema({
   title: {
@@ -103,6 +105,57 @@ const ProductSchema = new mongoose.Schema({
     enum: ["ON", "OFF"],
     default: "ON",
   },
+});
+
+// ===============================
+// 📌 STOCK ALERT: AFTER SAVE
+// ===============================
+ProductSchema.post("save", async function (doc) {
+  try {
+    // find company based on the user who created product
+    const company = await Company.findOne({ userId: doc.userId });
+
+    // receiver = company email OR fallback
+    const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
+
+    // check stock condition
+    if (doc.stockQuantity <= doc.quantityAlert) {
+      await sendEmail(
+        adminEmail,
+        "⚠️ STOCK ALERT NOTIFICATION",
+        `Product: ${doc.title}
+        Image: ${doc.imgUrl}
+        Stock Quantity: ${doc.stockQuantity}
+        Alert Level: ${doc.quantityAlert}
+        Please restock soon!`
+      );
+    }
+  } catch (err) {
+    console.log("Stock alert error:", err);
+  }
+});
+
+ProductSchema.post("findOneAndUpdate", async function (result) {
+  if (!result) return;
+
+  try {
+    const company = await Company.findOne({ userId: result.userId });
+    const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
+
+    if (result.stockQuantity <= result.quantityAlert) {
+      await sendEmail(
+        adminEmail,
+        "⚠️ STOCK ALERT NOTIFICATION",
+        `Product: ${result.title}
+        Stock Quantity: ${result.stockQuantity}
+        Alert Level: ${result.quantityAlert}
+         Image: ${result.imgUrl}
+        Please restock soon!`
+      );
+    }
+  } catch (err) {
+    console.log("Stock alert error:", err);
+  }
 });
 
 module.exports = mongoose.model("Product", ProductSchema);

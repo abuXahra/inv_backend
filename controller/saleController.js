@@ -4,6 +4,140 @@ const SalesReturn = require("../models/SaleReturn");
 const Product = require("../models/Product");
 
 // register sale data
+// exports.saleRegister1 = async (req, res) => {
+//   try {
+//     const {
+//       saleDate,
+//       customer,
+//       saleStatus,
+//       walkingCustomerEmail,
+//       walkingCustomerNumber,
+//       saleAmount,
+//       paymentType,
+//       paymentStatus,
+//       amountPaid,
+//       dueBalance,
+//       note,
+//       subTotal,
+//       otherCharges,
+//       discount,
+//       discountValue,
+//       shipping,
+//       saleItems = [],
+//       prefix,
+//       userId,
+//     } = req.body;
+
+//     // Find the last sale with the same prefix
+//     const lastSale = await Sale.findOne({
+//       code: { $regex: `^${prefix}` },
+//     })
+//       .sort({ code: -1 })
+//       .exec();
+
+//     let lastSerial = 0;
+
+//     if (lastSale && lastSale.code) {
+//       const match = lastSale.code.match(/\d+$/); // Extract the numeric part from the code
+//       if (match) {
+//         lastSerial = parseInt(match[0], 10);
+//       }
+//     }
+//     const serial = (lastSerial + 1).toString().padStart(4, "0");
+//     const code = `${prefix}${serial}`;
+
+//     // Sale Item
+//     const cleanedItems = saleItems.map((item) => ({
+//       productId: item.productId,
+//       title: item.title,
+//       quantity: Number(item.quantity),
+//       price: Number(item.price),
+//       tax: Number(item.tax),
+//       taxAmount: Number(item.taxAmount),
+//       unitCost: Number(item.unitCost),
+//       amount: Number(item.amount),
+//     }));
+//     console.log("🧾 Received Sale Items:", saleItems);
+//     console.log("🧾 Processed Items:", cleanedItems);
+//     console.log("🧾 Creating sale with data:");
+
+//     // Create sale instance
+//     const newSale = new Sale({
+//       code,
+//       saleDate,
+//       customer,
+//       saleStatus,
+//       walkingCustomerEmail,
+//       walkingCustomerNumber,
+//       saleAmount,
+//       paymentType,
+//       paymentStatus,
+//       amountPaid,
+//       dueBalance,
+//       note,
+//       subTotal,
+//       otherCharges,
+//       discount,
+//       discountValue,
+//       shipping,
+//       userId,
+//       saleItems: cleanedItems,
+//     });
+
+//     // Enforce dueBalance & amountPaid rules
+//     if (paymentStatus === "unpaid") {
+//       newSale.amountPaid = 0;
+//       newSale.dueBalance = newSale.saleAmount;
+//     } else if (paymentStatus === "paid") {
+//       newSale.amountPaid = newSale.saleAmount;
+//       newSale.dueBalance = 0;
+//     } else if (paymentStatus === "partial") {
+//       if (!amountPaid || amountPaid <= 0) {
+//         newSale.amountPaid = 0;
+//         newSale.dueBalance = newSale.saleAmount;
+//       } else {
+//         newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
+//       }
+//       // if (!newSale.amountPaid) {
+//       //   newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
+//       // }
+//     }
+
+//     await newSale.save();
+
+//     // loop through the sale Items and increase the product sale quantity accordingly
+//     for (const item of cleanedItems) {
+//       // check if is valid productId
+//       if (!mongoose.Types.ObjectId.isValid(item.productId)) {
+//         console.error("❌ Invalid productId:", item.productId);
+//         continue;
+//       }
+
+//       await Product.findByIdAndUpdate(
+//         item.productId,
+//         {
+//           $inc: {
+//             saleQuantity: item.quantity,
+//             stockQuantity: -item.quantity,
+//           },
+//         },
+//         { new: true }
+//       );
+//     }
+
+//     res.status(200).json({
+//       message: "Sale saved successful",
+//       newSale,
+//     });
+//   } catch (error) {
+//     console.error("❌ Sale Register Error:", error); // Full error object
+//     res
+//       .status(500)
+//       .json({ message: "Internal server error", error: error.message });
+//   }
+// };
+
+// register sale data
 exports.saleRegister = async (req, res) => {
   try {
     const {
@@ -28,7 +162,16 @@ exports.saleRegister = async (req, res) => {
       userId,
     } = req.body;
 
-    // Find the last sale with the same prefix
+    // Prevent saving sale with no items
+    if (!saleItems || saleItems.length === 0) {
+      return res.status(400).json({
+        message: "Sale items cannot be empty.",
+      });
+    }
+
+    // ================================
+    // 1. GENERATE SALE CODE
+    // ================================
     const lastSale = await Sale.findOne({
       code: { $regex: `^${prefix}` },
     })
@@ -36,17 +179,15 @@ exports.saleRegister = async (req, res) => {
       .exec();
 
     let lastSerial = 0;
-
     if (lastSale && lastSale.code) {
-      const match = lastSale.code.match(/\d+$/); // Extract the numeric part from the code
-      if (match) {
-        lastSerial = parseInt(match[0], 10);
-      }
+      const match = lastSale.code.match(/\d+$/);
+      if (match) lastSerial = parseInt(match[0], 10);
     }
+
     const serial = (lastSerial + 1).toString().padStart(4, "0");
     const code = `${prefix}${serial}`;
 
-    // Sale Item
+    // FORMAT ITEMS
     const cleanedItems = saleItems.map((item) => ({
       productId: item.productId,
       title: item.title,
@@ -57,11 +198,29 @@ exports.saleRegister = async (req, res) => {
       unitCost: Number(item.unitCost),
       amount: Number(item.amount),
     }));
-    console.log("🧾 Received Sale Items:", saleItems);
-    console.log("🧾 Processed Items:", cleanedItems);
-    console.log("🧾 Creating sale with data:");
 
-    // Create sale instance
+    // ================================
+    // 2. CHECK STOCK FOR ALL PRODUCTS (SAFE)
+    // ================================
+    for (const item of cleanedItems) {
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        return res.status(400).json({
+          message: `Product not found: ${item.title}`,
+        });
+      }
+
+      if (product.stockQuantity < item.quantity) {
+        return res.status(400).json({
+          message: `Not enough stock for product: ${item.title}`,
+        });
+      }
+    }
+
+    // ================================
+    // 3. CREATE THE SALE NOW
+    // ================================
     const newSale = new Sale({
       code,
       saleDate,
@@ -84,7 +243,7 @@ exports.saleRegister = async (req, res) => {
       saleItems: cleanedItems,
     });
 
-    // Enforce dueBalance & amountPaid rules
+    // PAYMENT LOGIC
     if (paymentStatus === "unpaid") {
       newSale.amountPaid = 0;
       newSale.dueBalance = newSale.saleAmount;
@@ -98,23 +257,19 @@ exports.saleRegister = async (req, res) => {
       } else {
         newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
       }
-      // if (!newSale.amountPaid) {
-      //   newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
-      // }
     }
 
     await newSale.save();
 
-    // loop through the sale Items and increase the product sale quantity accordingly
+    // ================================
+    // 4. ATOMIC STOCK UPDATE PER ITEM
+    // ================================
     for (const item of cleanedItems) {
-      // check if is valid productId
-      if (!mongoose.Types.ObjectId.isValid(item.productId)) {
-        console.error("❌ Invalid productId:", item.productId);
-        continue;
-      }
-
-      await Product.findByIdAndUpdate(
-        item.productId,
+      const update = await Product.findOneAndUpdate(
+        {
+          _id: item.productId,
+          stockQuantity: { $gte: item.quantity }, // prevent negative stock
+        },
         {
           $inc: {
             saleQuantity: item.quantity,
@@ -123,17 +278,27 @@ exports.saleRegister = async (req, res) => {
         },
         { new: true }
       );
+
+      if (!update) {
+        return res.status(400).json({
+          message: `Not enough stock for product: ${item.title}`,
+        });
+      }
     }
 
+    // ================================
+    // SUCCESS
+    // ================================
     res.status(200).json({
-      message: "Sale saved successful",
-      newSale,
+      message: "Sale saved successfully",
+      sale: newSale,
     });
   } catch (error) {
-    console.error("❌ Sale Register Error:", error); // Full error object
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    console.error("Sale Register Error:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -179,8 +344,12 @@ exports.fetchAllSale = async (req, res) => {
 };
 
 // Update Sale
+// ==============================
+// UPDATE SALE (SAFE VERSION)
+// ==============================
 exports.saleUpdate = async (req, res) => {
   const saleId = req.params.saleId;
+
   try {
     const {
       saleDate,
@@ -203,19 +372,31 @@ exports.saleUpdate = async (req, res) => {
       userId,
     } = req.body;
 
+    // ============================
+    // 0. VALIDATE SALE ITEMS
+    // ============================
+    if (!saleItems || saleItems.length === 0) {
+      return res.status(400).json({
+        message: "Sale items cannot be empty.",
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(saleId)) {
       return res.status(400).json({ message: "Invalid sale ID" });
     }
 
-    // 1️⃣ Get the old sale so we can rollback stock
+    // ============================
+    // 1. GET OLD SALE
+    // ============================
     const oldSale = await Sale.findById(saleId);
     if (!oldSale) {
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    // 2️⃣ Rollback previous sale quantities
+    // ============================
+    // 2. ROLLBACK OLD STOCK
+    // ============================
     for (const item of oldSale.saleItems) {
-      if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
       await Product.findByIdAndUpdate(
         item.productId,
         {
@@ -223,12 +404,14 @@ exports.saleUpdate = async (req, res) => {
             saleQuantity: -item.quantity,
             stockQuantity: item.quantity,
           },
-        }, // rollback
+        },
         { new: true }
       );
     }
 
-    // 3️⃣ Clean and sanitize new items
+    // ============================
+    // 3. CLEAN NEW SALE ITEMS
+    // ============================
     const cleanedItems = saleItems.map((item) => ({
       productId: item.productId,
       title: item.title,
@@ -240,7 +423,28 @@ exports.saleUpdate = async (req, res) => {
       amount: Number(item.amount),
     }));
 
-    // 4️⃣ Prepare updated sale object
+    // ============================
+    // 4. STOCK VALIDATION
+    // ============================
+    for (const item of cleanedItems) {
+      const product = await Product.findById(item.productId);
+
+      if (!product) {
+        return res.status(400).json({
+          message: `Product not found: ${item.title}`,
+        });
+      }
+
+      if (product.stockQuantity < item.quantity) {
+        return res.status(400).json({
+          message: `Not enough stock for product: ${item.title}`,
+        });
+      }
+    }
+
+    // ============================
+    // 5. PAYMENT LOGIC
+    // ============================
     const updateData = {
       saleDate,
       customer,
@@ -258,11 +462,10 @@ exports.saleUpdate = async (req, res) => {
       discount,
       discountValue,
       shipping,
-      saleItems: cleanedItems,
       userId,
+      saleItems: cleanedItems,
     };
 
-    // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
     if (paymentStatus === "unpaid") {
       updateData.amountPaid = 0;
       updateData.dueBalance = saleAmount;
@@ -278,17 +481,22 @@ exports.saleUpdate = async (req, res) => {
       }
     }
 
-    // 6️⃣ Update the sale
+    // ============================
+    // 6. UPDATE THE SALE RECORD
+    // ============================
     const updatedSale = await Sale.findByIdAndUpdate(saleId, updateData, {
       new: true,
     });
 
-    // 7️⃣ Add the new sale quantities
+    // ============================
+    // 7. APPLY NEW STOCK (ATOMIC)
+    // ============================
     for (const item of cleanedItems) {
-      if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
-
-      await Product.findByIdAndUpdate(
-        item.productId,
+      const stockUpdate = await Product.findOneAndUpdate(
+        {
+          _id: item.productId,
+          stockQuantity: { $gte: item.quantity }, // prevent negative stock
+        },
         {
           $inc: {
             saleQuantity: item.quantity,
@@ -297,19 +505,168 @@ exports.saleUpdate = async (req, res) => {
         },
         { new: true }
       );
+
+      if (!stockUpdate) {
+        return res.status(400).json({
+          message: `Not enough stock for product: ${item.title}`,
+        });
+      }
     }
 
+    // ============================
+    // SUCCESS
+    // ============================
     res.status(200).json({
       message: "Sale updated successfully",
-      updatedSale,
+      sale: updatedSale,
     });
   } catch (error) {
     console.error("❌ Sale Update Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
+
+// exports.saleUpdate1 = async (req, res) => {
+//   const saleId = req.params.saleId;
+//   try {
+//     const {
+//       saleDate,
+//       customer,
+//       saleStatus,
+//       walkingCustomerEmail,
+//       walkingCustomerNumber,
+//       saleAmount,
+//       paymentType,
+//       paymentStatus,
+//       amountPaid,
+//       dueBalance,
+//       note,
+//       subTotal,
+//       otherCharges,
+//       discount,
+//       discountValue,
+//       shipping,
+//       saleItems = [],
+//       userId,
+//     } = req.body;
+
+//     // Prevent saving sale with no items
+//     if (!saleItems || saleItems.length === 0) {
+//       return res.status(400).json({
+//         message: "Sale items cannot be empty.",
+//       });
+//     }
+
+//     if (!mongoose.Types.ObjectId.isValid(saleId)) {
+//       return res.status(400).json({ message: "Invalid sale ID" });
+//     }
+
+//     // 1️⃣ Get the old sale so we can rollback stock
+//     const oldSale = await Sale.findById(saleId);
+//     if (!oldSale) {
+//       return res.status(404).json({ message: "Sale not found" });
+//     }
+
+//     // 2️⃣ Rollback previous sale quantities
+//     for (const item of oldSale.saleItems) {
+//       if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+//       await Product.findByIdAndUpdate(
+//         item.productId,
+//         {
+//           $inc: {
+//             saleQuantity: -item.quantity,
+//             stockQuantity: item.quantity,
+//           },
+//         }, // rollback
+//         { new: true }
+//       );
+//     }
+
+//     // 3️⃣ Clean and sanitize new items
+//     const cleanedItems = saleItems.map((item) => ({
+//       productId: item.productId,
+//       title: item.title,
+//       quantity: Number(item.quantity),
+//       price: Number(item.price),
+//       tax: Number(item.tax),
+//       taxAmount: Number(item.taxAmount),
+//       unitCost: Number(item.unitCost),
+//       amount: Number(item.amount),
+//     }));
+
+//     // 4️⃣ Prepare updated sale object
+//     const updateData = {
+//       saleDate,
+//       customer,
+//       saleStatus,
+//       walkingCustomerEmail,
+//       walkingCustomerNumber,
+//       saleAmount,
+//       paymentType,
+//       paymentStatus,
+//       amountPaid,
+//       dueBalance,
+//       note,
+//       subTotal,
+//       otherCharges,
+//       discount,
+//       discountValue,
+//       shipping,
+//       saleItems: cleanedItems,
+//       userId,
+//     };
+
+//     // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
+//     if (paymentStatus === "unpaid") {
+//       updateData.amountPaid = 0;
+//       updateData.dueBalance = saleAmount;
+//     } else if (paymentStatus === "paid") {
+//       updateData.amountPaid = saleAmount;
+//       updateData.dueBalance = 0;
+//     } else if (paymentStatus === "partial") {
+//       if (!amountPaid || amountPaid <= 0) {
+//         updateData.amountPaid = 0;
+//         updateData.dueBalance = saleAmount;
+//       } else {
+//         updateData.dueBalance = saleAmount - amountPaid;
+//       }
+//     }
+
+//     // 6️⃣ Update the sale
+//     const updatedSale = await Sale.findByIdAndUpdate(saleId, updateData, {
+//       new: true,
+//     });
+
+//     // 7️⃣ Add the new sale quantities
+//     for (const item of cleanedItems) {
+//       if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
+
+//       await Product.findByIdAndUpdate(
+//         item.productId,
+//         {
+//           $inc: {
+//             saleQuantity: item.quantity,
+//             stockQuantity: -item.quantity,
+//           },
+//         },
+//         { new: true }
+//       );
+//     }
+
+//     res.status(200).json({
+//       message: "Sale updated successfully",
+//       updatedSale,
+//     });
+//   } catch (error) {
+//     console.error("❌ Sale Update Error:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Internal server error", error: error.message });
+//   }
+// };
 
 // spark go21
 
