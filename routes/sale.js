@@ -35,6 +35,14 @@ router.get(
   saleController.getTotalOutstandingSales
 );
 
+// fetch router
+router.get(
+  "/:saleId",
+  verifyToken,
+  checkPermission("Sale", "canView"),
+  saleController.fetchSale
+);
+
 // update router
 router.put(
   "/:saleId",
@@ -43,6 +51,23 @@ router.put(
   saleController.saleUpdate
 );
 
+router.get(
+  "/customer/:customerId",
+  verifyToken,
+  saleController.fetchSalesByCustomer
+);
+
+router.get(
+  "/customer-summary/:customerId",
+  verifyToken,
+  saleController.getCustomerPaymentSummary
+);
+
+router.get(
+  "/outstanding-sale/:customerId",
+  verifyToken,
+  saleController.getCustomerOutstandingSales
+);
 // fetch router
 router.get(
   "/:saleId",

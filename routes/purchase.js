@@ -43,6 +43,24 @@ router.put(
   purchaseController.purchaseUpdate
 );
 
+router.get(
+  "/supplier/:supplierId",
+  verifyToken,
+  purchaseController.fetchPurchaseFromSupplier
+);
+
+router.get(
+  "/supplier-summary/:supplierId",
+  verifyToken,
+  purchaseController.getSupplierPaymentSummary
+);
+
+router.get(
+  "/outstanding-purchase/:supplierId",
+  verifyToken,
+  purchaseController.getSupplierOutstandingPurchase
+);
+
 // fetch router
 router.get(
   "/:purchaseId",

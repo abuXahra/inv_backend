@@ -7,6 +7,9 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  videoUrl: {
+    type: String,
+  },
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Category",
@@ -110,52 +113,52 @@ const ProductSchema = new mongoose.Schema({
 // ===============================
 // 📌 STOCK ALERT: AFTER SAVE
 // ===============================
-ProductSchema.post("save", async function (doc) {
-  try {
-    // find company based on the user who created product
-    const company = await Company.findOne({ userId: doc.userId });
+// ProductSchema.post("save", async function (doc) {
+//   try {
+//     // find company based on the user who created product
+//     const company = await Company.findOne({ userId: doc.userId });
 
-    // receiver = company email OR fallback
-    const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
+//     // receiver = company email OR fallback
+//     const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
 
-    // check stock condition
-    if (doc.stockQuantity <= doc.quantityAlert) {
-      await sendEmail(
-        adminEmail,
-        "⚠️ STOCK ALERT NOTIFICATION",
-        `Product: ${doc.title}
-        Image: ${doc.imgUrl}
-        Stock Quantity: ${doc.stockQuantity}
-        Alert Level: ${doc.quantityAlert}
-        Please restock soon!`
-      );
-    }
-  } catch (err) {
-    console.log("Stock alert error:", err);
-  }
-});
+//     // check stock condition
+//     if (doc.stockQuantity <= doc.quantityAlert) {
+//       await sendEmail(
+//         adminEmail,
+//         "⚠️ STOCK ALERT NOTIFICATION",
+//         `Product: ${doc.title}
+//         Image: ${doc.imgUrl}
+//         Stock Quantity: ${doc.stockQuantity}
+//         Alert Level: ${doc.quantityAlert}
+//         Please restock soon!`
+//       );
+//     }
+//   } catch (err) {
+//     console.log("Stock alert error:", err);
+//   }
+// });
 
-ProductSchema.post("findOneAndUpdate", async function (result) {
-  if (!result) return;
+// ProductSchema.post("findOneAndUpdate", async function (result) {
+//   if (!result) return;
 
-  try {
-    const company = await Company.findOne({ userId: result.userId });
-    const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
+//   try {
+//     const company = await Company.findOne({ userId: result.userId });
+//     const adminEmail = company?.companyEmail || process.env.EMAIL_USER;
 
-    if (result.stockQuantity <= result.quantityAlert) {
-      await sendEmail(
-        adminEmail,
-        "⚠️ STOCK ALERT NOTIFICATION",
-        `Product: ${result.title}
-        Stock Quantity: ${result.stockQuantity}
-        Alert Level: ${result.quantityAlert}
-         Image: ${result.imgUrl}
-        Please restock soon!`
-      );
-    }
-  } catch (err) {
-    console.log("Stock alert error:", err);
-  }
-});
+//     if (result.stockQuantity <= result.quantityAlert) {
+//       await sendEmail(
+//         adminEmail,
+//         "⚠️ STOCK ALERT NOTIFICATION",
+//         `Product: ${result.title}
+//         Stock Quantity: ${result.stockQuantity}
+//         Alert Level: ${result.quantityAlert}
+//          Image: ${result.imgUrl}
+//         Please restock soon!`
+//       );
+//     }
+//   } catch (err) {
+//     console.log("Stock alert error:", err);
+//   }
+// });
 
 module.exports = mongoose.model("Product", ProductSchema);

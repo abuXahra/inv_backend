@@ -460,3 +460,98 @@ exports.getTotalPayableAmount = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
+
+// FETCH CUSTOMER PAYMENT HISTORY
+exports.getCustomerPaymentHistory = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "Customer ID is required." });
+    }
+
+    // 1️⃣ Fetch all sales of this customer
+    const sales = await Sale.find({ customer: customerId })
+      .select("code")
+      .lean();
+
+    const saleCodes = sales.map((s) => s.code);
+
+    // 2️⃣ Fetch all payments linked to any sale by this customer
+    const payments = await Payment.find({
+      paymentFor: { $in: saleCodes },
+    })
+      .select("paymentFor payableAmount paymentDate paymentType")
+      .sort({ paymentDate: -1 }) // newest first
+      .lean();
+
+    // 3️⃣ Convert payments to history format
+    const paymentHistory = payments.map((p) => ({
+      invoiceNo: p.paymentFor,
+      amountPaid: p.payableAmount,
+      paymentType: p.paymentType,
+      paymentDate: p.paymentDate,
+    }));
+
+    return res.status(200).json({
+      message: "Customer payment history fetched successfully.",
+      paymentHistory,
+    });
+  } catch (error) {
+    console.error("Payment history error:", error);
+    res.status(500).json({
+      message: "Error fetching customer payment history.",
+      error: error.message,
+    });
+  }
+};
+
+// FETCH SUPPLIER PURCHASE PAYMENT HISTORY
+exports.getSupplierPaymentHistory = async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+
+    if (!supplierId) {
+      return res.status(400).json({ message: "Supplier ID is required." });
+    }
+
+    // 1️⃣ Fetch all purchases of this supplier
+    const purchases = await Purchase.find({ supplier: supplierId })
+      .select("code")
+      .lean();
+
+    const purchaseCodes = purchases.map((p) => p.code);
+
+    // 2️⃣ Fetch all payments linked to these purchases
+    const payments = await Payment.find({
+      paymentFor: { $in: purchaseCodes },
+    })
+      .select("paymentFor payableAmount paymentDate paymentType")
+      .sort({ paymentDate: 1 })
+      .lean();
+
+    // 3️⃣ Convert Payment model records (ONLY SOURCE OF TRUTH)
+    const paymentHistory = payments.map((p) => ({
+      invoiceNo: p.paymentFor,
+      amountPaid: p.payableAmount,
+      paymentType: p.paymentType,
+      paymentDate: p.paymentDate,
+    }));
+
+    // 4️⃣ Sort newest first
+    paymentHistory.sort(
+      (a, b) => new Date(b.paymentDate) - new Date(a.paymentDate)
+    );
+
+    return res.status(200).json({
+      message: "Supplier payment history fetched successfully.",
+      paymentHistory,
+    });
+  } catch (error) {
+    console.error("Supplier payment history error:", error);
+    res.status(500).json({
+      message: "Error fetching supplier payment history.",
+      error: error.message,
+    });
+  }
+};

@@ -35,6 +35,18 @@ router.get(
   paymentController.getPayment
 );
 
+router.get(
+  "/customer/:customerId/payment-history",
+  verifyToken,
+  paymentController.getCustomerPaymentHistory
+);
+
+router.get(
+  "/supplier/:supplierId/payment-history",
+  verifyToken,
+  paymentController.getSupplierPaymentHistory
+);
+
 router.put(
   "/:paymentId",
   verifyToken,

@@ -4,6 +4,7 @@ exports.createProduct = async (req, res) => {
   try {
     const {
       title,
+      videoUrl,
       category,
       unit,
       sku,
@@ -29,7 +30,6 @@ exports.createProduct = async (req, res) => {
       !category ||
       !unit ||
       !quantityAlert ||
-      !description ||
       !price ||
       !tax ||
       !taxAmount ||
@@ -65,6 +65,7 @@ exports.createProduct = async (req, res) => {
 
     const newProduct = new Product({
       title,
+      videoUrl,
       category,
       code,
       unit,
@@ -222,6 +223,7 @@ exports.getTotalStockAmount = async (req, res) => {
       {
         $project: {
           stockValue: { $multiply: ["$stockQuantity", "$salePrice"] },
+          // stockValue: { $multiply: ["$stockQuantity", "$purchasePrice"] },
         },
       },
       {

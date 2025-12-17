@@ -2,140 +2,7 @@ const { default: mongoose } = require("mongoose");
 const Sale = require("../models/Sale");
 const SalesReturn = require("../models/SaleReturn");
 const Product = require("../models/Product");
-
-// register sale data
-// exports.saleRegister1 = async (req, res) => {
-//   try {
-//     const {
-//       saleDate,
-//       customer,
-//       saleStatus,
-//       walkingCustomerEmail,
-//       walkingCustomerNumber,
-//       saleAmount,
-//       paymentType,
-//       paymentStatus,
-//       amountPaid,
-//       dueBalance,
-//       note,
-//       subTotal,
-//       otherCharges,
-//       discount,
-//       discountValue,
-//       shipping,
-//       saleItems = [],
-//       prefix,
-//       userId,
-//     } = req.body;
-
-//     // Find the last sale with the same prefix
-//     const lastSale = await Sale.findOne({
-//       code: { $regex: `^${prefix}` },
-//     })
-//       .sort({ code: -1 })
-//       .exec();
-
-//     let lastSerial = 0;
-
-//     if (lastSale && lastSale.code) {
-//       const match = lastSale.code.match(/\d+$/); // Extract the numeric part from the code
-//       if (match) {
-//         lastSerial = parseInt(match[0], 10);
-//       }
-//     }
-//     const serial = (lastSerial + 1).toString().padStart(4, "0");
-//     const code = `${prefix}${serial}`;
-
-//     // Sale Item
-//     const cleanedItems = saleItems.map((item) => ({
-//       productId: item.productId,
-//       title: item.title,
-//       quantity: Number(item.quantity),
-//       price: Number(item.price),
-//       tax: Number(item.tax),
-//       taxAmount: Number(item.taxAmount),
-//       unitCost: Number(item.unitCost),
-//       amount: Number(item.amount),
-//     }));
-//     console.log("🧾 Received Sale Items:", saleItems);
-//     console.log("🧾 Processed Items:", cleanedItems);
-//     console.log("🧾 Creating sale with data:");
-
-//     // Create sale instance
-//     const newSale = new Sale({
-//       code,
-//       saleDate,
-//       customer,
-//       saleStatus,
-//       walkingCustomerEmail,
-//       walkingCustomerNumber,
-//       saleAmount,
-//       paymentType,
-//       paymentStatus,
-//       amountPaid,
-//       dueBalance,
-//       note,
-//       subTotal,
-//       otherCharges,
-//       discount,
-//       discountValue,
-//       shipping,
-//       userId,
-//       saleItems: cleanedItems,
-//     });
-
-//     // Enforce dueBalance & amountPaid rules
-//     if (paymentStatus === "unpaid") {
-//       newSale.amountPaid = 0;
-//       newSale.dueBalance = newSale.saleAmount;
-//     } else if (paymentStatus === "paid") {
-//       newSale.amountPaid = newSale.saleAmount;
-//       newSale.dueBalance = 0;
-//     } else if (paymentStatus === "partial") {
-//       if (!amountPaid || amountPaid <= 0) {
-//         newSale.amountPaid = 0;
-//         newSale.dueBalance = newSale.saleAmount;
-//       } else {
-//         newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
-//       }
-//       // if (!newSale.amountPaid) {
-//       //   newSale.dueBalance = newSale.saleAmount - newSale.amountPaid;
-//       // }
-//     }
-
-//     await newSale.save();
-
-//     // loop through the sale Items and increase the product sale quantity accordingly
-//     for (const item of cleanedItems) {
-//       // check if is valid productId
-//       if (!mongoose.Types.ObjectId.isValid(item.productId)) {
-//         console.error("❌ Invalid productId:", item.productId);
-//         continue;
-//       }
-
-//       await Product.findByIdAndUpdate(
-//         item.productId,
-//         {
-//           $inc: {
-//             saleQuantity: item.quantity,
-//             stockQuantity: -item.quantity,
-//           },
-//         },
-//         { new: true }
-//       );
-//     }
-
-//     res.status(200).json({
-//       message: "Sale saved successful",
-//       newSale,
-//     });
-//   } catch (error) {
-//     console.error("❌ Sale Register Error:", error); // Full error object
-//     res
-//       .status(500)
-//       .json({ message: "Internal server error", error: error.message });
-//   }
-// };
+const Payment = require("../models/Payment");
 
 // register sale data
 exports.saleRegister = async (req, res) => {
@@ -262,7 +129,23 @@ exports.saleRegister = async (req, res) => {
     await newSale.save();
 
     // ================================
-    // 4. ATOMIC STOCK UPDATE PER ITEM
+    // 4. SAVE PAYMENT RECORD IF NEEDED
+    // ================================
+    if (paymentStatus === "paid" || paymentStatus === "partial") {
+      await Payment.create({
+        paymentDate: saleDate, // value from saleDate
+        paymentFor: code, // sale code (e.g. SA0001)
+        invoiceNo: code, // same as paymentFor
+        dueBalance: newSale.dueBalance, // remaining balance
+        payableAmount: newSale.amountPaid, // how much was paid NOW
+        paymentType: paymentType, // cash/card/online etc.
+        note,
+        userId,
+      });
+    }
+
+    // ================================
+    // 5. ATOMIC STOCK UPDATE PER ITEM
     // ================================
     for (const item of cleanedItems) {
       const update = await Product.findOneAndUpdate(
@@ -343,10 +226,117 @@ exports.fetchAllSale = async (req, res) => {
   }
 };
 
-// Update Sale
+// ========================================
+// fetch all sales for a particular customer
+// ========================================
+exports.fetchSalesByCustomer = async (req, res) => {
+  try {
+    const { customerId } = req.params; // get customer ID from route params
+
+    const sales = await Sale.find({ customer: customerId }) // filter by customer
+      .populate({
+        path: "userId",
+        select: "username",
+      })
+      .populate({
+        path: "customer",
+        select: "name email code",
+      })
+      .populate({
+        path: "saleItems.productId",
+        select: "title salePrice",
+      })
+      .sort({ createdAt: -1 }); // latest first
+
+    res.status(200).json(sales);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// GET total paid and total outstanding for a particular customer
+// Controller to get total paid and total outstanding for a customer
+exports.getCustomerPaymentSummary = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    // Fetch all sales for the customer
+    const sales = await Sale.find({ customer: customerId });
+
+    if (!sales.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No sales found for this customer",
+      });
+    }
+
+    let totalPaid = 0;
+    let totalOutstanding = 0;
+
+    sales.forEach((sale) => {
+      // Total Paid: sum amountPaid for partial or fully paid sales
+      if (sale.paymentStatus === "paid" || sale.paymentStatus === "partial") {
+        totalPaid += sale.amountPaid;
+      }
+
+      // Total Outstanding: sum dueBalance
+      totalOutstanding += sale.dueBalance;
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalPaid,
+        totalOutstanding,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching customer payment summary:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// ========================
+// FETCH CUSTOMER OUTSTANDING SALES
+// ========================
+exports.getCustomerOutstandingSales = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    if (!customerId) {
+      return res.status(400).json({ message: "Customer ID is required" });
+    }
+
+    // Fetch only outstanding sales (dueBalance > 0)
+    const outstandingSales = await Sale.find({
+      customer: customerId,
+      dueBalance: { $gt: 0 }, // Only unpaid or partial
+    })
+      .populate("customer", "name email phoneNumber code")
+      .populate("saleItems.productId", "title salePrice"); // optional
+
+    res.status(200).json({
+      success: true,
+      count: outstandingSales.length,
+      outstandingSales,
+    });
+  } catch (error) {
+    console.error("Error fetching outstanding sales:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch outstanding sales",
+    });
+  }
+};
+
 // ==============================
-// UPDATE SALE (SAFE VERSION)
+// UPDATE SALE (SAFE VERSION WITH PAYMENT LOGIC)
 // ==============================
+
 exports.saleUpdate = async (req, res) => {
   const saleId = req.params.saleId;
 
@@ -466,18 +456,71 @@ exports.saleUpdate = async (req, res) => {
       saleItems: cleanedItems,
     };
 
+    // Reset amounts based on payment status
     if (paymentStatus === "unpaid") {
       updateData.amountPaid = 0;
       updateData.dueBalance = saleAmount;
+
+      // DELETE existing payment if any
+      await Payment.deleteMany({ paymentFor: oldSale.code });
     } else if (paymentStatus === "paid") {
       updateData.amountPaid = saleAmount;
       updateData.dueBalance = 0;
-    } else if (paymentStatus === "partial") {
-      if (!amountPaid || amountPaid <= 0) {
-        updateData.amountPaid = 0;
-        updateData.dueBalance = saleAmount;
+
+      // Check if payment record exists
+      const existingPayment = await Payment.findOne({
+        paymentFor: oldSale.code,
+      });
+      if (existingPayment) {
+        // If amountPaid changed, update it
+        if (existingPayment.payableAmount !== saleAmount) {
+          existingPayment.payableAmount = saleAmount;
+          existingPayment.paymentDate = saleDate;
+          existingPayment.paymentType = paymentType;
+          await existingPayment.save();
+        }
       } else {
-        updateData.dueBalance = saleAmount - amountPaid;
+        // Create payment record
+        await Payment.create({
+          paymentDate: saleDate,
+          paymentFor: oldSale.code,
+          invoiceNo: oldSale.code,
+          dueBalance: 0,
+          payableAmount: saleAmount,
+          paymentType,
+          note,
+          userId,
+        });
+      }
+    } else if (paymentStatus === "partial") {
+      const calculatedDue = saleAmount - (amountPaid || 0);
+      updateData.dueBalance = calculatedDue;
+      updateData.amountPaid = amountPaid || 0;
+
+      const existingPayment = await Payment.findOne({
+        paymentFor: oldSale.code,
+      });
+      if (existingPayment) {
+        // If amountPaid changed, update it
+        if (existingPayment.payableAmount !== (amountPaid || 0)) {
+          existingPayment.payableAmount = amountPaid || 0;
+          existingPayment.dueBalance = calculatedDue;
+          existingPayment.paymentDate = saleDate;
+          existingPayment.paymentType = paymentType;
+          await existingPayment.save();
+        }
+      } else {
+        // Create payment record
+        await Payment.create({
+          paymentDate: saleDate,
+          paymentFor: oldSale.code,
+          invoiceNo: oldSale.code,
+          dueBalance: calculatedDue,
+          payableAmount: amountPaid || 0,
+          paymentType,
+          note,
+          userId,
+        });
       }
     }
 
@@ -495,7 +538,7 @@ exports.saleUpdate = async (req, res) => {
       const stockUpdate = await Product.findOneAndUpdate(
         {
           _id: item.productId,
-          stockQuantity: { $gte: item.quantity }, // prevent negative stock
+          stockQuantity: { $gte: item.quantity },
         },
         {
           $inc: {
@@ -529,160 +572,23 @@ exports.saleUpdate = async (req, res) => {
   }
 };
 
-// exports.saleUpdate1 = async (req, res) => {
-//   const saleId = req.params.saleId;
-//   try {
-//     const {
-//       saleDate,
-//       customer,
-//       saleStatus,
-//       walkingCustomerEmail,
-//       walkingCustomerNumber,
-//       saleAmount,
-//       paymentType,
-//       paymentStatus,
-//       amountPaid,
-//       dueBalance,
-//       note,
-//       subTotal,
-//       otherCharges,
-//       discount,
-//       discountValue,
-//       shipping,
-//       saleItems = [],
-//       userId,
-//     } = req.body;
-
-//     // Prevent saving sale with no items
-//     if (!saleItems || saleItems.length === 0) {
-//       return res.status(400).json({
-//         message: "Sale items cannot be empty.",
-//       });
-//     }
-
-//     if (!mongoose.Types.ObjectId.isValid(saleId)) {
-//       return res.status(400).json({ message: "Invalid sale ID" });
-//     }
-
-//     // 1️⃣ Get the old sale so we can rollback stock
-//     const oldSale = await Sale.findById(saleId);
-//     if (!oldSale) {
-//       return res.status(404).json({ message: "Sale not found" });
-//     }
-
-//     // 2️⃣ Rollback previous sale quantities
-//     for (const item of oldSale.saleItems) {
-//       if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
-//       await Product.findByIdAndUpdate(
-//         item.productId,
-//         {
-//           $inc: {
-//             saleQuantity: -item.quantity,
-//             stockQuantity: item.quantity,
-//           },
-//         }, // rollback
-//         { new: true }
-//       );
-//     }
-
-//     // 3️⃣ Clean and sanitize new items
-//     const cleanedItems = saleItems.map((item) => ({
-//       productId: item.productId,
-//       title: item.title,
-//       quantity: Number(item.quantity),
-//       price: Number(item.price),
-//       tax: Number(item.tax),
-//       taxAmount: Number(item.taxAmount),
-//       unitCost: Number(item.unitCost),
-//       amount: Number(item.amount),
-//     }));
-
-//     // 4️⃣ Prepare updated sale object
-//     const updateData = {
-//       saleDate,
-//       customer,
-//       saleStatus,
-//       walkingCustomerEmail,
-//       walkingCustomerNumber,
-//       saleAmount,
-//       paymentType,
-//       paymentStatus,
-//       amountPaid,
-//       dueBalance,
-//       note,
-//       subTotal,
-//       otherCharges,
-//       discount,
-//       discountValue,
-//       shipping,
-//       saleItems: cleanedItems,
-//       userId,
-//     };
-
-//     // 5️⃣ Enforce dueBalance & amountPaid rules (same as registerSale)
-//     if (paymentStatus === "unpaid") {
-//       updateData.amountPaid = 0;
-//       updateData.dueBalance = saleAmount;
-//     } else if (paymentStatus === "paid") {
-//       updateData.amountPaid = saleAmount;
-//       updateData.dueBalance = 0;
-//     } else if (paymentStatus === "partial") {
-//       if (!amountPaid || amountPaid <= 0) {
-//         updateData.amountPaid = 0;
-//         updateData.dueBalance = saleAmount;
-//       } else {
-//         updateData.dueBalance = saleAmount - amountPaid;
-//       }
-//     }
-
-//     // 6️⃣ Update the sale
-//     const updatedSale = await Sale.findByIdAndUpdate(saleId, updateData, {
-//       new: true,
-//     });
-
-//     // 7️⃣ Add the new sale quantities
-//     for (const item of cleanedItems) {
-//       if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
-
-//       await Product.findByIdAndUpdate(
-//         item.productId,
-//         {
-//           $inc: {
-//             saleQuantity: item.quantity,
-//             stockQuantity: -item.quantity,
-//           },
-//         },
-//         { new: true }
-//       );
-//     }
-
-//     res.status(200).json({
-//       message: "Sale updated successfully",
-//       updatedSale,
-//     });
-//   } catch (error) {
-//     console.error("❌ Sale Update Error:", error);
-//     res
-//       .status(500)
-//       .json({ message: "Internal server error", error: error.message });
-//   }
-// };
-
-// spark go21
-
+// DELETE SINGLE
 exports.deleteSale = async (req, res) => {
-  try {
-    const saleId = req.params.saleId;
+  const saleId = req.params.saleId;
 
-    const sale = await Sale.findById(saleId);
+  const session = await Sale.startSession();
+  session.startTransaction();
+
+  try {
+    const sale = await Sale.findById(saleId).session(session);
     if (!sale) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    // Rollback product quantities
+    // 1️⃣ Rollback Product stock & sale quantity
     for (const item of sale.saleItems) {
-      if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
-
       await Product.findByIdAndUpdate(
         item.productId,
         {
@@ -691,48 +597,43 @@ exports.deleteSale = async (req, res) => {
             stockQuantity: item.quantity,
           },
         },
-        { new: true }
+        { session }
       );
     }
 
-    // Now delete the sale
-    await Sale.findByIdAndDelete(saleId);
+    // 2️⃣ Delete all sales returns linked to this sale
+    await SalesReturn.deleteMany({ sale: saleId }, { session });
+
+    // 3️⃣ Delete the sale
+    await Sale.findByIdAndDelete(saleId, { session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json({
-      success: true,
-      message: "Sale deleted and product quantities rolled back.",
+      message: "Sale, related returns deleted, and stock reversed successfully",
     });
   } catch (err) {
-    console.error("Delete Sale Error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error deleting sale:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+// / BULK DELETE sales
 exports.bulkDeleteSale = async (req, res) => {
+  const { ids } = req.body; // array of sale IDs
+
+  const session = await Sale.startSession();
+  session.startTransaction();
+
   try {
-    const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No Sale IDs provided.",
-      });
-    }
-
-    // Fetch all sales to rollback product quantities
-    const sales = await Sale.find({ _id: { $in: ids } });
-
-    if (sales.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No matching sales found.",
-      });
-    }
+    const sales = await Sale.find({ _id: { $in: ids } }).session(session);
 
     for (const sale of sales) {
+      // 1️⃣ Rollback Product stock & sale quantity
       for (const item of sale.saleItems) {
-        if (!mongoose.Types.ObjectId.isValid(item.productId)) continue;
-
         await Product.findByIdAndUpdate(
           item.productId,
           {
@@ -741,24 +642,29 @@ exports.bulkDeleteSale = async (req, res) => {
               stockQuantity: item.quantity,
             },
           },
-          { new: true }
+          { session }
         );
       }
     }
 
-    // Now delete all sales in one operation
-    const result = await Sale.deleteMany({ _id: { $in: ids } });
+    // 2️⃣ Delete all related sales returns
+    await SalesReturn.deleteMany({ sale: { $in: ids } }, { session });
+
+    // 3️⃣ Delete sales
+    await Sale.deleteMany({ _id: { $in: ids } }, { session });
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json({
-      success: true,
-      message: `${result.deletedCount} sales deleted and product quantities rolled back.`,
+      message:
+        "Selected sales, related returns deleted, and stock reversed successfully",
     });
-  } catch (error) {
-    console.error("Bulk delete sale error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal server error.",
-    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error bulk deleting sales:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
