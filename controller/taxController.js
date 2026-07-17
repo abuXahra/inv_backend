@@ -1,4 +1,5 @@
 const Tax = require("../models/Tax");
+const logActivity = require("../utils/activityLogger");
 
 // create tax
 exports.createTax = async (req, res) => {
@@ -20,6 +21,20 @@ exports.createTax = async (req, res) => {
     });
 
     const savedTax = await newTax.save();
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "ADD",
+      module: "Tax",
+      documentId: savedTax._id,
+      description: `Added tax "${savedTax.name}"`,
+      newData: {
+        title: savedTax.name,
+        code: savedTax.code,
+        status: "",
+      },
+    });
 
     res.status(200).json({ savedTax, message: "created successfully" });
   } catch (error) {
@@ -54,8 +69,22 @@ exports.updateTax = async (req, res) => {
     const updatedTax = await Tax.findByIdAndUpdate(
       req.params.taxId,
       { $set: req.body },
-      { new: true }
+      { new: true },
     );
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "Tax",
+      documentId: updatedTax._id,
+      description: `Tax "${updatedTax.name}" updated`,
+      newData: {
+        title: updatedTax.expenseFor,
+        code: updatedTax.code,
+        status: "",
+      },
+    });
+
     res.status(200).json(updatedTax);
   } catch (err) {
     res.status(500).json(err);
@@ -67,6 +96,21 @@ exports.deleteTax = async (req, res) => {
   try {
     const taxId = req.params.taxId;
     const tax = await Tax.findByIdAndDelete(taxId);
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "Tax",
+      documentId: tax._id,
+      description: `Deleted a Tax "${tax.name}"`,
+      newData: {
+        title: tax.name,
+        code: tax.code,
+        status: "",
+      },
+    });
+
     return res.status(200).json({ tax, message: "Unit deleted successfully" });
   } catch (err) {
     res.status(500).json(err);

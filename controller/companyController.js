@@ -1,5 +1,6 @@
 const Company = require("../models/Company");
 const User = require("../models/User"); // Assuming User model is used for email and name check
+const logActivity = require("../utils/activityLogger");
 
 // register company profile
 exports.companyRegister = async (req, res) => {
@@ -30,6 +31,7 @@ exports.companyRegister = async (req, res) => {
       wastage,
       userId,
     } = req.body;
+    const user = req.user; // comes from verifyToken
 
     // Check for existing entries
     const [existingCompanyName, existingCompanyEmail] = await Promise.all([
@@ -82,6 +84,21 @@ exports.companyRegister = async (req, res) => {
     });
 
     const savedCompany = await newCompany.save();
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "ADD",
+      module: "Company",
+      documentId: savedCompany._id,
+      description: `Added Company "${savedCompany.companyName}"`,
+      newData: {
+        title: savedCompany.companyName,
+        code: "",
+        status: "",
+      },
+    });
+
     res.status(200).json({
       message: "Company registration successful",
       savedCompany,
@@ -158,6 +175,7 @@ exports.companyUpdate = async (req, res) => {
     } = req.body;
 
     const companyId = req.params.companyId;
+    const user = req.user; // comes from verifyToken
 
     if (!companyId) {
       return res.status(400).json({ message: "Invalid company ID" });
@@ -165,6 +183,7 @@ exports.companyUpdate = async (req, res) => {
 
     const updatedCompany = await Company.findByIdAndUpdate(
       req.params.companyId,
+
       {
         companyName,
         tagLine,
@@ -198,6 +217,20 @@ exports.companyUpdate = async (req, res) => {
 
       { new: true }
     );
+    // Activity log
+    await logActivity({
+      user,
+      action: "UPDATE",
+      module: "Company",
+      documentId: updatedCompany._id,
+      description: `Updated Company "${updatedCompany.companyName}"`,
+      newData: {
+        title: updatedCompany.companyName,
+        code: "",
+        status: "",
+      },
+    });
+
     res.status(200).json(updatedCompany);
   } catch (err) {
     res.status(500).json(err);
@@ -207,10 +240,23 @@ exports.companyUpdate = async (req, res) => {
 exports.deleteCompany = async (req, res) => {
   try {
     const companyId = req.params.companyId;
+    const user = req.user; // comes from verifyToken
 
     // Find user and delete it
     const company = await Company.findByIdAndDelete(companyId);
-
+    // Activity log
+    await logActivity({
+      user,
+      action: "DELETE",
+      module: "Company",
+      documentId: company._id,
+      description: `Deleted category "${company.title}"`,
+      newData: {
+        title: company.title,
+        code: "",
+        status: "",
+      },
+    });
     return res
       .status(200)
       .json({ company, message: "Company deleted successfully" });

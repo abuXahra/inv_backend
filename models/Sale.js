@@ -81,6 +81,7 @@ const SaleSchema = new mongoose.Schema(
       enum: ["unpaid", "partial", "paid"],
       default: "unpaid",
     },
+
     amountPaid: {
       type: Number,
       default: 0,
@@ -123,7 +124,7 @@ const SaleSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 /**

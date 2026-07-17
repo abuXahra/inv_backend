@@ -1,8 +1,74 @@
 const Category = require("../models/Category");
 const Product = require("../models/Product");
+const logActivity = require("../utils/activityLogger");
 
 // register category
 exports.createCategory = async (req, res) => {
+  try {
+    const { title, status, note, imgUrl, prefix } = req.body;
+
+    const user = req.user; // comes from verifyToken
+
+    // Find last category with same prefix
+    const lastCategory = await Category.findOne({
+      code: { $regex: `^${prefix}` },
+    })
+      .sort({ code: -1 })
+      .exec();
+
+    let lastSerial = 0;
+    if (lastCategory?.code) {
+      const match = lastCategory.code.match(/\d+$/);
+      if (match) lastSerial = parseInt(match[0], 10);
+    }
+
+    // Check duplicate title
+    const existingTitle = await Category.findOne({ title });
+    if (existingTitle) {
+      return res.status(400).json({
+        message: "Category title already exists. Please use another title.",
+      });
+    }
+
+    const serial = (lastSerial + 1).toString().padStart(4, "0");
+    const code = `${prefix}${serial}`;
+
+    const newCategory = new Category({
+      title,
+      status,
+      code,
+      note,
+      imgUrl,
+      userId: user._id, // take from token, not request body
+    });
+
+    const savedCategory = await newCategory.save();
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "ADD",
+      module: "Category",
+      documentId: savedCategory._id,
+      description: `Added category "${savedCategory.title}"`,
+      newData: {
+        title: savedCategory.title,
+        code: savedCategory.code,
+        status: savedCategory.status,
+      },
+    });
+
+    res.status(201).json({
+      message: "Category created successfully",
+      savedCategory,
+    });
+  } catch (error) {
+    console.error("Create category error:", error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
+exports.createCategory1 = async (req, res) => {
   try {
     const { title, status, note, imgUrl, prefix, userId } = req.body;
 
@@ -141,12 +207,28 @@ exports.getCategoryWithProducts = async (req, res) => {
 
 //Update category
 exports.categoryUpdate = async (req, res) => {
+  const user = req.user; // comes from verifyToken
   try {
     const updatedCategory = await Category.findByIdAndUpdate(
       req.params.categoryId,
       { $set: req.body },
       { new: true }
     );
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "UPDATE",
+      module: "Category",
+      documentId: updatedCategory._id,
+      description: `Updated category "${updatedCategory.title}"`,
+      newData: {
+        title: updatedCategory.title,
+        code: updatedCategory.code,
+        status: updatedCategory.status,
+      },
+    });
+
     res.status(200).json(updatedCategory);
   } catch (err) {
     res.status(500).json(err);
@@ -155,11 +237,27 @@ exports.categoryUpdate = async (req, res) => {
 
 // delete category
 exports.deleteCategory = async (req, res) => {
+  const user = req.user; // comes from verifyToken
+
   try {
     const categoryId = req.params.categoryId;
 
     // Find user and delete it
     const category = await Category.findByIdAndDelete(categoryId);
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "DELETE",
+      module: "Category",
+      documentId: category._id,
+      description: `Deleted category "${category.title}"`,
+      newData: {
+        title: category.title,
+        code: category.code,
+        status: category.status,
+      },
+    });
 
     return res
       .status(200)

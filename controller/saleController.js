@@ -3,8 +3,8 @@ const Sale = require("../models/Sale");
 const SalesReturn = require("../models/SaleReturn");
 const Product = require("../models/Product");
 const Payment = require("../models/Payment");
+const logActivity = require("../utils/activityLogger");
 
-// register sale data
 exports.saleRegister = async (req, res) => {
   try {
     const {
@@ -54,7 +54,9 @@ exports.saleRegister = async (req, res) => {
     const serial = (lastSerial + 1).toString().padStart(4, "0");
     const code = `${prefix}${serial}`;
 
+    // ================================
     // FORMAT ITEMS
+    // ================================
     const cleanedItems = saleItems.map((item) => ({
       productId: item.productId,
       title: item.title,
@@ -67,7 +69,7 @@ exports.saleRegister = async (req, res) => {
     }));
 
     // ================================
-    // 2. CHECK STOCK FOR ALL PRODUCTS (SAFE)
+    // 2. CHECK STOCK FOR ALL PRODUCTS
     // ================================
     for (const item of cleanedItems) {
       const product = await Product.findById(item.productId);
@@ -86,7 +88,7 @@ exports.saleRegister = async (req, res) => {
     }
 
     // ================================
-    // 3. CREATE THE SALE NOW
+    // 3. CREATE THE SALE
     // ================================
     const newSale = new Sale({
       code,
@@ -110,7 +112,9 @@ exports.saleRegister = async (req, res) => {
       saleItems: cleanedItems,
     });
 
+    // ================================
     // PAYMENT LOGIC
+    // ================================
     if (paymentStatus === "unpaid") {
       newSale.amountPaid = 0;
       newSale.dueBalance = newSale.saleAmount;
@@ -129,16 +133,33 @@ exports.saleRegister = async (req, res) => {
     await newSale.save();
 
     // ================================
+    // 📝 ACTIVITY LOG (SALE CREATED)
+    // ================================
+    await logActivity({
+      user: req.user,
+      action: "ADD",
+      module: "Sale",
+      documentId: newSale._id,
+      description: `Added a sale (${newSale.code})`,
+      oldData: null,
+      newData: {
+        title: newSale.code,
+        code: newSale.code,
+        status: "",
+      },
+    });
+
+    // ================================
     // 4. SAVE PAYMENT RECORD IF NEEDED
     // ================================
     if (paymentStatus === "paid" || paymentStatus === "partial") {
       await Payment.create({
-        paymentDate: saleDate, // value from saleDate
-        paymentFor: code, // sale code (e.g. SA0001)
-        invoiceNo: code, // same as paymentFor
-        dueBalance: newSale.dueBalance, // remaining balance
-        payableAmount: newSale.amountPaid, // how much was paid NOW
-        paymentType: paymentType, // cash/card/online etc.
+        paymentDate: saleDate,
+        paymentFor: code,
+        invoiceNo: code,
+        dueBalance: newSale.dueBalance,
+        payableAmount: newSale.amountPaid,
+        paymentType,
         note,
         userId,
       });
@@ -151,7 +172,7 @@ exports.saleRegister = async (req, res) => {
       const update = await Product.findOneAndUpdate(
         {
           _id: item.productId,
-          stockQuantity: { $gte: item.quantity }, // prevent negative stock
+          stockQuantity: { $gte: item.quantity },
         },
         {
           $inc: {
@@ -159,7 +180,7 @@ exports.saleRegister = async (req, res) => {
             stockQuantity: -item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!update) {
@@ -169,6 +190,7 @@ exports.saleRegister = async (req, res) => {
       }
     }
 
+    console.log(newSale);
     // ================================
     // SUCCESS
     // ================================
@@ -395,7 +417,7 @@ exports.saleUpdate = async (req, res) => {
             stockQuantity: item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -532,6 +554,23 @@ exports.saleUpdate = async (req, res) => {
     });
 
     // ============================
+    // 📝 ACTIVITY LOG (SALE UPDATED)
+    // ============================
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "Sale",
+      documentId: updatedSale._id,
+      description: `Sale (${updatedSale.code}) updated`,
+      // oldData: oldSaleData,
+      newData: {
+        title: updatedSale.code,
+        code: updatedSale.code,
+        status: "",
+      },
+    });
+
+    // ============================
     // 7. APPLY NEW STOCK (ATOMIC)
     // ============================
     for (const item of cleanedItems) {
@@ -546,7 +585,7 @@ exports.saleUpdate = async (req, res) => {
             stockQuantity: -item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
 
       if (!stockUpdate) {
@@ -597,7 +636,7 @@ exports.deleteSale = async (req, res) => {
             stockQuantity: item.quantity,
           },
         },
-        { session }
+        { session },
       );
     }
 
@@ -605,11 +644,24 @@ exports.deleteSale = async (req, res) => {
     await SalesReturn.deleteMany({ sale: saleId }, { session });
 
     // 3️⃣ Delete the sale
-    await Sale.findByIdAndDelete(saleId, { session });
+    const saleDeleted = await Sale.findByIdAndDelete(saleId, { session });
 
     await session.commitTransaction();
     session.endSession();
 
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "Sale",
+      documentId: saleDeleted._id,
+      description: `Sale (${saleDeleted.code}) deleted`,
+      // oldData: oldSaleData,
+      newData: {
+        title: saleDeleted.code,
+        code: saleDeleted.code,
+        status: "",
+      },
+    });
     res.status(200).json({
       message: "Sale, related returns deleted, and stock reversed successfully",
     });
@@ -621,7 +673,7 @@ exports.deleteSale = async (req, res) => {
   }
 };
 
-// / BULK DELETE sales
+// BULK DELETE sales
 exports.bulkDeleteSale = async (req, res) => {
   const { ids } = req.body; // array of sale IDs
 
@@ -629,9 +681,19 @@ exports.bulkDeleteSale = async (req, res) => {
   session.startTransaction();
 
   try {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No sale IDs provided" });
+    }
+
     const sales = await Sale.find({ _id: { $in: ids } }).session(session);
 
     for (const sale of sales) {
+      const saleId = sale._id;
+
+      // 🔹 Snapshot for activity log
+      const oldSaleData = sale.toObject();
+      const saleCode = sale.code;
+
       // 1️⃣ Rollback Product stock & sale quantity
       for (const item of sale.saleItems) {
         await Product.findByIdAndUpdate(
@@ -642,9 +704,20 @@ exports.bulkDeleteSale = async (req, res) => {
               stockQuantity: item.quantity,
             },
           },
-          { session }
+          { session },
         );
       }
+
+      // 📝 Activity Log (per sale)
+      await logActivity({
+        user: req.user,
+        action: "DELETE",
+        module: "Sale",
+        documentId: saleId,
+        description: `Sale (${saleCode}) deleted via bulk delete`,
+        oldData: oldSaleData,
+        newData: null,
+      });
     }
 
     // 2️⃣ Delete all related sales returns
@@ -704,7 +777,7 @@ exports.getTotalSaleAmount = async (req, res) => {
     console.error(
       "Error getting total sale amount:",
       error.message,
-      error.stack
+      error.stack,
     );
     res
       .status(500)
@@ -768,6 +841,84 @@ exports.getTotalOutstandingSales = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error",
+    });
+  }
+};
+
+//fetch product sale customers
+exports.getProductCustomers = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const result = await Sale.aggregate([
+      // 1. Break saleItems array
+      { $unwind: "$saleItems" },
+
+      // 2. Match product
+      {
+        $match: {
+          "saleItems.productId": new mongoose.Types.ObjectId(productId),
+        },
+      },
+
+      // 3. Join customer
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      { $unwind: "$customer" },
+
+      // 4. Group by customer + product
+      {
+        $group: {
+          _id: {
+            customerId: "$customer._id",
+            productId: "$saleItems.productId",
+          },
+
+          customerName: { $first: "$customer.name" },
+          productName: { $first: "$saleItems.title" },
+
+          totalQuantity: { $sum: "$saleItems.quantity" },
+
+          unitPrice: { $avg: "$saleItems.price" },
+
+          totalAmount: { $sum: "$saleItems.amount" },
+
+          lastSaleDate: { $max: "$saleDate" }, // ✅ ADDED
+        },
+      },
+
+      // 5. Format output
+      {
+        $project: {
+          _id: 0,
+          customer: "$customerName",
+          productName: 1,
+          quantity: "$totalQuantity",
+          unitPrice: { $round: ["$unitPrice", 2] },
+          amount: "$totalAmount",
+          lastSaleDate: 1, // ✅ ADDED
+        },
+      },
+
+      // Optional: sort
+      { $sort: { customer: 1 } },
+    ]);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching product customers",
     });
   }
 };

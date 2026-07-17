@@ -24,8 +24,9 @@ const ProductSchema = new mongoose.Schema({
     ref: "Unit",
     required: true,
   },
-  sku: {
-    type: String,
+
+  expirationDate: {
+    type: Date,
   },
   quantityAlert: {
     type: Number,
@@ -107,6 +108,14 @@ const ProductSchema = new mongoose.Schema({
     type: String,
     enum: ["ON", "OFF"],
     default: "ON",
+  },
+
+  // ✅ Track which alerts were sent
+  expirationAlerts: {
+    sixMonths: { type: Boolean, default: false },
+    threeMonths: { type: Boolean, default: false },
+    twoMonths: { type: Boolean, default: false },
+    oneMonth: { type: Boolean, default: false },
   },
 });
 

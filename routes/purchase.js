@@ -9,7 +9,7 @@ router.post(
   "/create",
   verifyToken,
   checkPermission("Purchase", "canAdd"),
-  purchaseController.purchaseRegister
+  purchaseController.purchaseRegister,
 );
 
 // fetch all router
@@ -20,19 +20,19 @@ router.delete(
   "/bulk-delete",
   verifyToken,
   checkPermission("Purchase", "canDelete"),
-  purchaseController.bulkDeletePurchase
+  purchaseController.bulkDeletePurchase,
 );
 
 router.get(
   "/total-purchase",
   verifyToken,
-  purchaseController.getTotalPurchaseAmount
+  purchaseController.getTotalPurchaseAmount,
 );
 
 router.get(
   "/outstanding-purchase",
   verifyToken,
-  purchaseController.getTotalOutstandingPurchasePayment
+  purchaseController.getTotalOutstandingPurchasePayment,
 );
 
 // update router
@@ -40,25 +40,32 @@ router.put(
   "/:purchaseId",
   verifyToken,
   checkPermission("Purchase", "canEdit"),
-  purchaseController.purchaseUpdate
+  purchaseController.purchaseUpdate,
 );
 
 router.get(
   "/supplier/:supplierId",
   verifyToken,
-  purchaseController.fetchPurchaseFromSupplier
+  purchaseController.fetchPurchaseFromSupplier,
 );
 
 router.get(
   "/supplier-summary/:supplierId",
   verifyToken,
-  purchaseController.getSupplierPaymentSummary
+  purchaseController.getSupplierPaymentSummary,
 );
 
 router.get(
   "/outstanding-purchase/:supplierId",
   verifyToken,
-  purchaseController.getSupplierOutstandingPurchase
+  purchaseController.getSupplierOutstandingPurchase,
+);
+
+// fetch router
+router.get(
+  "/product/:productId",
+  verifyToken,
+  purchaseController.getProductSuppliers,
 );
 
 // fetch router
@@ -66,7 +73,7 @@ router.get(
   "/:purchaseId",
   verifyToken,
   checkPermission("Purchase", "canView"),
-  purchaseController.fetchPurchase
+  purchaseController.fetchPurchase,
 );
 
 // delete router
@@ -74,7 +81,7 @@ router.delete(
   "/:purchaseId",
   verifyToken,
   checkPermission("Purchase", "canDelete"),
-  purchaseController.deletePurchase
+  purchaseController.deletePurchase,
 );
 
 module.exports = router;

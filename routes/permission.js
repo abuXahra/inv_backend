@@ -9,21 +9,42 @@ router.post(
   "/add",
   verifyToken,
   checkPermission("Permission", "canAdd"),
-  permissionController.addPermissionModule
+  permissionController.addPermissionModule,
 );
 
 router.get(
   "/",
   verifyToken,
   checkPermission("Permission", "canView"),
-  permissionController.getAllPermissions
+  permissionController.getAllPermissions,
+);
+
+router.get(
+  "/:permissionId",
+  verifyToken,
+  checkPermission("Permission", "canView"),
+  permissionController.getSinglePermissions,
 );
 
 router.put(
   "/update-all",
   verifyToken,
   checkPermission("Permission", "canEdit"),
-  permissionController.updateAllPermissions
+  permissionController.updateAllPermissions,
+);
+
+router.put(
+  "/:permissionId",
+  verifyToken,
+  checkPermission("Permission", "canEdit"),
+  permissionController.updateSinglePermission,
+);
+
+router.delete(
+  "/:permissionId",
+  verifyToken,
+  checkPermission("Permission", "canDelete"),
+  permissionController.deletePermission,
 );
 
 module.exports = router;

@@ -55,6 +55,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Category",
@@ -63,6 +64,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Customer",
@@ -71,6 +73,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: true,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Sale",
@@ -79,6 +82,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: false,
             canDelete: true,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Supplier",
@@ -87,6 +91,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: true,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Purchase",
@@ -95,6 +100,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: false,
             canDelete: true,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Payment",
@@ -103,6 +109,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: false,
             canDelete: true,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Expense",
@@ -111,6 +118,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Sale Return",
@@ -119,6 +127,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Purchase Return",
@@ -127,6 +136,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "User",
@@ -135,6 +145,7 @@ exports.userRegister = async (req, res) => {
             canAdd: true,
             canEdit: true,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Company",
@@ -143,6 +154,7 @@ exports.userRegister = async (req, res) => {
             canAdd: false,
             canEdit: false,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Tax",
@@ -151,6 +163,7 @@ exports.userRegister = async (req, res) => {
             canAdd: false,
             canEdit: false,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Unit",
@@ -159,6 +172,7 @@ exports.userRegister = async (req, res) => {
             canAdd: false,
             canEdit: false,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Report",
@@ -167,6 +181,7 @@ exports.userRegister = async (req, res) => {
             canAdd: false,
             canEdit: false,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
           {
             module: "Permission",
@@ -175,6 +190,16 @@ exports.userRegister = async (req, res) => {
             canAdd: false,
             canEdit: false,
             canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
+          },
+          {
+            module: "Audit Log",
+            canVisit: true,
+            canView: false,
+            canAdd: false,
+            canEdit: false,
+            canDelete: false,
+            // roles: ["user", "admin", "super-admin"],
           },
         ];
         const inserted = await Permission.insertMany(defaultPermissions);

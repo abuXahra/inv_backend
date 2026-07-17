@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const PurchaseReturn = require("../models/PurchaseReturn");
 const Purchase = require("../models/Purchase");
 const Product = require("../models/Product");
+const logActivity = require("../utils/activityLogger");
 
 // Helper: Generate Code
 const generateReturnCode = async (prefix) => {
@@ -52,7 +53,7 @@ exports.purchaseReturnRegister = async (req, res) => {
     // 2️⃣ Validate return items
     for (const item of returnItems) {
       const soldItem = purchase.purchaseItems.find(
-        (si) => si.productId.toString() === item.productId
+        (si) => si.productId.toString() === item.productId,
       );
 
       if (!soldItem) {
@@ -107,6 +108,20 @@ exports.purchaseReturnRegister = async (req, res) => {
 
     await newReturn.save();
 
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "ADD",
+      module: "Purchase Return",
+      documentId: newReturn._id,
+      description: `Added a purchase return "${newReturn.code}"`,
+      newData: {
+        title: newReturn.code,
+        code: newReturn.code,
+        status: "",
+      },
+    });
+
     // 6️⃣ Update stock
     for (const item of cleanedItems) {
       await Product.findByIdAndUpdate(
@@ -118,14 +133,14 @@ exports.purchaseReturnRegister = async (req, res) => {
             stockQuantity: -item.quantity,
           }, // reduce sold
         },
-        { new: true }
+        { new: true },
       );
     }
 
     // Update Purchase.purchseItems quantities
     purchase.purchaseItems = purchase.purchaseItems.map((si) => {
       const returnedItem = cleanedItems.find(
-        (ri) => ri.productId.toString() === si.productId.toString()
+        (ri) => ri.productId.toString() === si.productId.toString(),
       );
       if (returnedItem) {
         return {
@@ -223,13 +238,13 @@ exports.updatePurchaseReturn = async (req, res) => {
             stockQuantity: -oldItem.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
     // 🔍 Step 2: Validate new return items
     const purchase = await PurchaseReturn.findById(
-      purchaseId || purchaseReturn.purchase
+      purchaseId || purchaseReturn.purchase,
     );
     if (!purchase) {
       return res.status(404).json({ message: "Related sale not found" });
@@ -237,7 +252,7 @@ exports.updatePurchaseReturn = async (req, res) => {
 
     for (const item of returnItems) {
       const soldItem = purchase.purchaseItems.find(
-        (si) => si.productId.toString() === item.productId
+        (si) => si.productId.toString() === item.productId,
       );
       if (!soldItem) {
         return res
@@ -262,7 +277,7 @@ exports.updatePurchaseReturn = async (req, res) => {
             stockQuantity: -item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -289,6 +304,20 @@ exports.updatePurchaseReturn = async (req, res) => {
 
     await purchaseReturn.save();
 
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "Purchase Return",
+      documentId: purchaseReturn._id,
+      description: `Updated a purchase return "${purchaseReturn.code}"`,
+      newData: {
+        title: purchaseReturn.code,
+        code: purchaseReturn.code,
+        status: "",
+      },
+    });
+
     res.status(200).json({
       message: "purchase return updated successfully",
       return: purchaseReturn,
@@ -301,7 +330,6 @@ exports.updatePurchaseReturn = async (req, res) => {
   }
 };
 
-// 📌 Delete purchase Return
 exports.deletePurchaseReturn = async (req, res) => {
   try {
     const { returnId } = req.params;
@@ -321,7 +349,7 @@ exports.deletePurchaseReturn = async (req, res) => {
             stockQuantity: item.quantity,
           }, // + added
         },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -330,7 +358,7 @@ exports.deletePurchaseReturn = async (req, res) => {
     if (purchase) {
       purchase.purchaseItems = purchase.purchaseItems.map((si) => {
         const returnedItem = purchaseReturn.returnItems.find(
-          (ri) => ri.productId.toString() === si.productId.toString()
+          (ri) => ri.productId.toString() === si.productId.toString(),
         );
 
         if (returnedItem) {
@@ -345,6 +373,20 @@ exports.deletePurchaseReturn = async (req, res) => {
     }
 
     await purchaseReturn.deleteOne();
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "Purchase Return",
+      documentId: purchaseReturn._id,
+      description: `Deleted a purchase return "${purchaseReturn.code}"`,
+      newData: {
+        title: purchaseReturn.code,
+        code: purchaseReturn.code,
+        status: "",
+      },
+    });
 
     res
       .status(200)
@@ -368,6 +410,12 @@ exports.bulkDeletePurchaseReturn = async (req, res) => {
     const purchaseReturns = await PurchaseReturn.find({ _id: { $in: ids } });
 
     for (const purchaseReturn of purchaseReturns) {
+      const returnId = purchaseReturn._id;
+
+      // 🔹 Snapshot for activity log
+      const oldReturnData = purchaseReturn.toObject();
+      const returnCode = purchaseReturn.code; // change if needed
+
       // 1️⃣ Rollback stock in Product
       for (const item of purchaseReturn.returnItems) {
         await Product.findByIdAndUpdate(
@@ -379,7 +427,63 @@ exports.bulkDeletePurchaseReturn = async (req, res) => {
               stockQuantity: item.quantity,
             },
           },
-          { new: true }
+          { new: true },
+        );
+      }
+
+      // 2️⃣ Delete the return
+      await purchaseReturn.deleteOne();
+
+      // 3️⃣ Activity Log
+      await logActivity({
+        user: req.user,
+        action: "DELETE",
+        module: "Purchase Return",
+        documentId: returnId,
+        description: `Purchase return (${returnCode}) deleted via bulk delete`,
+        oldData: oldReturnData,
+        newData: {
+          title: returnCode,
+          code: returnCode,
+          status: "",
+        },
+      });
+    }
+
+    res
+      .status(200)
+      .json({ message: "Selected purchase returns deleted successfully" });
+  } catch (error) {
+    console.error("❌ Bulk Delete purchase Returns Error:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+// 📌 Bulk Delete purchase Returns
+exports.bulkDeletePurchaseReturn1 = async (req, res) => {
+  try {
+    const { ids } = req.body; // array of return IDs
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No return IDs provided" });
+    }
+
+    const purchaseReturns = await PurchaseReturn.find({ _id: { $in: ids } });
+
+    for (const purchaseReturn of purchaseReturns) {
+      // 1️⃣ Rollback stock in Product
+      for (const item of purchaseReturn.returnItems) {
+        await Product.findByIdAndUpdate(
+          item.productId,
+          {
+            $inc: {
+              purchaseReturnQuantity: -item.quantity,
+              purchaseQuantity: item.quantity,
+              stockQuantity: item.quantity,
+            },
+          },
+          { new: true },
         );
       }
 

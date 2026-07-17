@@ -1,4 +1,5 @@
 const Product = require("../models/Product");
+const logActivity = require("../utils/activityLogger");
 
 exports.createProduct = async (req, res) => {
   try {
@@ -7,7 +8,7 @@ exports.createProduct = async (req, res) => {
       videoUrl,
       category,
       unit,
-      sku,
+      expirationDate,
       quantityAlert,
       description,
       imgUrl,
@@ -24,7 +25,7 @@ exports.createProduct = async (req, res) => {
       status,
       userId,
     } = req.body;
-
+    const user = req.user; // comes from verifyToken
     if (
       !title ||
       !category ||
@@ -69,7 +70,7 @@ exports.createProduct = async (req, res) => {
       category,
       code,
       unit,
-      sku,
+      expirationDate,
       quantityAlert: Number(quantityAlert),
       description,
       imgUrl: imgUrl,
@@ -87,6 +88,21 @@ exports.createProduct = async (req, res) => {
     });
 
     await newProduct.save();
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "ADD",
+      module: "Product",
+      documentId: newProduct._id,
+      description: `Added product "${newProduct.title}"`,
+      newData: {
+        title: newProduct.title,
+        code: newProduct.code,
+        status: "",
+      },
+    });
+
     res
       .status(201)
       .json({ message: "Product added successfully.", product: newProduct });
@@ -115,7 +131,7 @@ exports.fetchProductReport = async (req, res) => {
     const products = await Product.find()
       .populate({ path: "unit", select: "title" })
       .populate({ path: "category", select: "title" })
-      .sort({ stockQuantity: 1 })
+      // .sort({ stockQuantity: -1 })
       .lean();
     res.status(200).json(products);
   } catch (err) {
@@ -142,6 +158,8 @@ exports.updateProducts = async (req, res) => {
   try {
     const productId = req.params.productId;
 
+    const user = req.user; // comes from verifyToken
+
     const product = await Product.findById(productId);
 
     if (!product) {
@@ -151,8 +169,23 @@ exports.updateProducts = async (req, res) => {
     const productUpdate = await Product.findByIdAndUpdate(
       req.params.productId,
       { $set: req.body },
-      { new: true }
+      { new: true },
     );
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "UPDATE",
+      module: "Product",
+      documentId: productUpdate._id,
+      description: `Updated product "${productUpdate.title}"`,
+      newData: {
+        title: productUpdate.title,
+        code: productUpdate.code,
+        status: "",
+      },
+    });
+
     res.status(200).json(productUpdate);
   } catch (err) {
     res.status(500).json(err);
@@ -163,9 +196,24 @@ exports.updateProducts = async (req, res) => {
 exports.productDelete = async (req, res) => {
   try {
     const productId = req.params.productId;
+    const user = req.user; // comes from verifyToken
 
     // Find product and delete it
     const product = await Product.findByIdAndDelete(productId);
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "DELETE",
+      module: "Product",
+      documentId: product._id,
+      description: `Deleted product "${product.title}"`,
+      newData: {
+        title: product.title,
+        code: product.code,
+        status: "",
+      },
+    });
 
     return res
       .status(200)
@@ -180,6 +228,7 @@ exports.productDelete = async (req, res) => {
 exports.bulkDeleteProducts = async (req, res) => {
   try {
     const { ids } = req.body; // expects an array of _id values
+    const user = req.user; // comes from verifyToken
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res
@@ -187,7 +236,35 @@ exports.bulkDeleteProducts = async (req, res) => {
         .json({ success: false, message: "No customer IDs provided." });
     }
 
+    // 1️⃣ Fetch product before deletion (for logging)
+    const products = await Product.find({ _id: { $in: ids } });
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No products found.",
+      });
+    }
+
     const result = await Product.deleteMany({ _id: { $in: ids } });
+
+    // 3️⃣ Log activity per expense
+    await Promise.all(
+      products.map((product) =>
+        logActivity({
+          user,
+          action: "DELETE",
+          module: "Product",
+          documentId: product._id,
+          description: `Deleted product "${product.title}"`,
+          oldData: {
+            title: product.title,
+            code: product.code,
+            status: "",
+          },
+        }),
+      ),
+    );
 
     res.status(200).json({
       success: true,
@@ -256,6 +333,7 @@ exports.getTotalStockAmount = async (req, res) => {
 //       {
 //         $group: {
 //           _id: null,
+
 //           totalStockQuantity: { $sum: "$stockQuantity" },
 //           totalSalePrice: { $sum: "$salePrice" },
 //         },

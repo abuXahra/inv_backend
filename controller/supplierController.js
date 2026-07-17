@@ -1,4 +1,5 @@
 const Supplier = require("../models/Supplier");
+const logActivity = require("../utils/activityLogger");
 
 // register supplier
 exports.registerSupplier = async (req, res) => {
@@ -55,6 +56,21 @@ exports.registerSupplier = async (req, res) => {
     });
 
     const savedSupplier = await newSupplier.save();
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "ADD",
+      module: "Supplier",
+      documentId: savedSupplier._id,
+      description: `Supplier "${savedSupplier.name}" registered`,
+      newData: {
+        title: savedSupplier.name,
+        code: savedSupplier.code,
+        status: "",
+      },
+    });
+
     res.status(200).json({
       message: "Supplier saved successfully",
       savedSupplier,
@@ -101,6 +117,21 @@ exports.updateSupplier = async (req, res) => {
       { $set: req.body },
       { new: true }
     );
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "Supplier",
+      documentId: supplierUpdate._id,
+      description: `Supplier "${supplierUpdate.name}" updated`,
+      newData: {
+        title: supplierUpdate.name,
+        code: supplierUpdate.code,
+        status: "",
+      },
+    });
+
     res.status(200).json(supplierUpdate);
   } catch (err) {
     res.status(500).json(err);
@@ -114,6 +145,16 @@ exports.supplierDelete = async (req, res) => {
 
     // Find and delete it
     const supplier = await Supplier.findByIdAndDelete(supplierId);
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "Supplier",
+      documentId: supplier._id,
+      description: `Deleted a supplier "${supplier.name}"`,
+      newData: null,
+    });
 
     return res
       .status(200)
@@ -135,7 +176,35 @@ exports.bulkDeleteSuppliers = async (req, res) => {
         .json({ success: false, message: "No supplier IDs provided." });
     }
 
+    // 1️⃣ Fetch expense before deletion (for logging)
+    const suppliers = await Supplier.find({ _id: { $in: ids } });
+
+    if (suppliers.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No suppliers found.",
+      });
+    }
+
     const result = await Supplier.deleteMany({ _id: { $in: ids } });
+
+    // 3️⃣ Log activity per expense
+    await Promise.all(
+      suppliers.map((supplier) =>
+        logActivity({
+          user: req.user,
+          action: "DELETE",
+          module: "Supplier",
+          documentId: supplier._id,
+          description: `Deleted supplier "${supplier.name}"`,
+          oldData: {
+            title: supplier.name,
+            code: supplier.code,
+            status: "",
+          },
+        })
+      )
+    );
 
     res.status(200).json({
       success: true,

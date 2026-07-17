@@ -29,7 +29,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       require: true,
       enum: ["admin", "user"],
-      default: "user",
+      default: "admin",
     },
 
     address: {
@@ -46,7 +46,7 @@ const UserSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("User", UserSchema);

@@ -1,6 +1,7 @@
 const Payment = require("../models/Payment");
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
+const logActivity = require("../utils/activityLogger");
 
 // Register Payment
 exports.registerPayment = async (req, res) => {
@@ -13,6 +14,7 @@ exports.registerPayment = async (req, res) => {
       note,
       userId,
     } = req.body;
+    const user = req.user; // comes from verifyToken
 
     if (!paymentFor || !payableAmount || !paymentType || !paymentDate) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -85,6 +87,21 @@ exports.registerPayment = async (req, res) => {
     });
 
     await newPayment.save();
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "ADD",
+      module: "Payment",
+      documentId: newPayment._id,
+      description: `Added a payment for the invoice "${newPayment.paymentFor}"`,
+      newData: {
+        title: newPayment.paymentFor,
+        code: newPayment.code,
+        status: "",
+      },
+    });
+
     res
       .status(201)
       .json({ message: "Payment recorded successfully", payment: newPayment });
@@ -109,7 +126,7 @@ exports.getPayment = async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.paymentId).populate(
       "userId",
-      "name email"
+      "name email",
     );
     if (!payment) return res.status(404).json({ message: "Payment not found" });
     res.status(200).json(payment);
@@ -151,7 +168,7 @@ exports.getPurchasePayments = async (req, res) => {
   try {
     // Find all payments whose invoiceNo starts with "PU"
     const payments = await Payment.find({
-      invoiceNo: { $regex: /^PU/i },
+      invoiceNo: { $regex: /^PC/i },
     })
       .populate("userId", "name email") // Include user info
       .lean();
@@ -166,14 +183,28 @@ exports.getPurchasePayments = async (req, res) => {
 
     // Map purchase info to their respective payments
     const purchaseMap = new Map(purchases.map((p) => [p.code, p]));
+    const enriched = payments.map((p) => {
+      const purchase = purchaseMap.get(p.invoiceNo);
 
-    const enriched = payments.map((p) => ({
-      ...p,
-      supplier: purchaseMap.get(p.invoiceNo)?.supplier || null,
-      purchaseAmount: purchaseMap.get(p.invoiceNo)?.purchaseAmount || 0,
-      paymentStatus: purchaseMap.get(p.invoiceNo)?.paymentStatus || "N/A",
-      dueBalance: purchaseMap.get(p.invoiceNo)?.dueBalance ?? p.dueBalance,
-    }));
+      return {
+        ...p,
+
+        // purchase info
+        purchaseDate: purchase?.purchaseDate || null,
+        purchaseAmount: purchase?.purchaseAmount || 0,
+        paymentStatus: purchase?.paymentStatus || "N/A",
+        dueBalance: purchase?.dueBalance ?? p.dueBalance,
+        paymentType: purchase?.paymentType || p.paymentType,
+
+        // supplier
+        supplier: purchase?.supplier || null,
+
+        // extra optional fields
+        purchaseStatus: purchase?.purchaseStatus || "",
+        amountPaid: purchase?.amountPaid || 0,
+        reference: purchase?.reference || "",
+      };
+    });
 
     res.status(200).json(enriched);
   } catch (error) {
@@ -194,6 +225,8 @@ exports.updatePayment = async (req, res) => {
       note,
       userId,
     } = req.body;
+
+    const user = req.user; // comes from verifyToken
 
     const payment = await Payment.findById(paymentId);
     if (!payment) return res.status(404).json({ message: "Payment not found" });
@@ -270,6 +303,20 @@ exports.updatePayment = async (req, res) => {
 
     await payment.save();
 
+    // Activity log
+    await logActivity({
+      user,
+      action: "UPDATE",
+      module: "Payment",
+      documentId: payment._id,
+      description: `Updated a payment for the invoice "${payment.paymentFor}"`,
+      newData: {
+        title: payment.paymentFor,
+        code: payment.code,
+        status: "",
+      },
+    });
+
     res.status(200).json({
       message: "Payment updated successfully",
       payment,
@@ -284,8 +331,10 @@ exports.updatePayment = async (req, res) => {
 exports.deletePayment = async (req, res) => {
   try {
     const paymentId = req.params.paymentId;
+    const user = req.user; // comes from verifyToken
 
     const payment = await Payment.findById(paymentId);
+
     if (!payment) return res.status(404).json({ message: "Payment not found" });
 
     const { paymentFor, payableAmount } = payment;
@@ -339,7 +388,21 @@ exports.deletePayment = async (req, res) => {
     }
 
     // Delete the payment after rollback
-    await Payment.findByIdAndDelete(paymentId);
+    const paymentB = await Payment.findByIdAndDelete(paymentId);
+
+    // Activity log
+    await logActivity({
+      user,
+      action: "DELETE",
+      module: "Payment",
+      documentId: paymentB._id,
+      description: `Deleted a payment for the invoice "${paymentB.paymentFor}"`,
+      newData: {
+        title: paymentB.paymentFor,
+        code: paymentB.code,
+        status: "",
+      },
+    });
 
     res
       .status(200)
@@ -352,6 +415,7 @@ exports.deletePayment = async (req, res) => {
 
 exports.bulkDeletePayment = async (req, res) => {
   try {
+    const user = req.user; // comes from verifyToken
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -418,8 +482,36 @@ exports.bulkDeletePayment = async (req, res) => {
       }
     }
 
+    // 1️⃣ Fetch customers before deletion (for logging)
+    const paymentsB = await Payment.find({ _id: { $in: ids } });
+
+    if (paymentsB.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No Payments found.",
+      });
+    }
+
     // Step 3: Delete all payments in one go
     const result = await Payment.deleteMany({ _id: { $in: ids } });
+
+    // 3️⃣ Log activity per customer
+    await Promise.all(
+      paymentsB.map((payment) =>
+        logActivity({
+          user,
+          action: "DELETE",
+          module: "Payment",
+          documentId: payment._id,
+          description: `Deleted customer "${payment.paymentFor}" via bulk delete`,
+          oldData: {
+            title: payment.paymentFor,
+            code: payment.code,
+            status: "",
+          },
+        }),
+      ),
+    );
 
     res.status(200).json({
       success: true,
@@ -453,7 +545,7 @@ exports.getTotalPayableAmount = async (req, res) => {
     console.error(
       "Error getting total payable amount:",
       error.message,
-      error.stack
+      error.stack,
     );
     res
       .status(500)
@@ -540,7 +632,7 @@ exports.getSupplierPaymentHistory = async (req, res) => {
 
     // 4️⃣ Sort newest first
     paymentHistory.sort(
-      (a, b) => new Date(b.paymentDate) - new Date(a.paymentDate)
+      (a, b) => new Date(b.paymentDate) - new Date(a.paymentDate),
     );
 
     return res.status(200).json({

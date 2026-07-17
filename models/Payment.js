@@ -24,7 +24,14 @@ const PaymentSchema = new mongoose.Schema(
     },
     paymentType: {
       type: String,
-      enum: ["Card", "Cash", "Check", "Online", "Bank Transfer", "N/A"],
+      enum: [
+        "Card",
+        "ETMCS Deduction",
+        "Cash",
+        "Check",
+        "Online",
+        "Bank Transfer",
+      ],
       required: true,
     },
     note: {
@@ -35,7 +42,7 @@ const PaymentSchema = new mongoose.Schema(
       ref: "User",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Payment", PaymentSchema);

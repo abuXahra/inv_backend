@@ -9,7 +9,7 @@ router.post(
   "/create",
   verifyToken,
   checkPermission("Sale", "canAdd"),
-  saleController.saleRegister
+  saleController.saleRegister,
 );
 
 // fetch all router
@@ -20,7 +20,7 @@ router.delete(
   "/bulk-delete",
   verifyToken,
   checkPermission("Sale", "canDelete"),
-  saleController.bulkDeleteSale
+  saleController.bulkDeleteSale,
 );
 
 router.get("/payable", verifyToken, saleController.getPayableSales);
@@ -32,15 +32,21 @@ router.get("/total-sale", verifyToken, saleController.getTotalSaleAmount);
 router.get(
   "/outstanding-sale",
   verifyToken,
-  saleController.getTotalOutstandingSales
+  saleController.getTotalOutstandingSales,
 );
 
 // fetch router
 router.get(
+  "/product/:productId",
+  verifyToken,
+  saleController.getProductCustomers,
+);
+
+router.get(
   "/:saleId",
   verifyToken,
   checkPermission("Sale", "canView"),
-  saleController.fetchSale
+  saleController.fetchSale,
 );
 
 // update router
@@ -48,40 +54,41 @@ router.put(
   "/:saleId",
   verifyToken,
   checkPermission("Sale", "canEdit"),
-  saleController.saleUpdate
+  saleController.saleUpdate,
 );
 
 router.get(
   "/customer/:customerId",
   verifyToken,
-  saleController.fetchSalesByCustomer
+  saleController.fetchSalesByCustomer,
 );
 
 router.get(
   "/customer-summary/:customerId",
   verifyToken,
-  saleController.getCustomerPaymentSummary
+  saleController.getCustomerPaymentSummary,
 );
 
 router.get(
   "/outstanding-sale/:customerId",
   verifyToken,
-  saleController.getCustomerOutstandingSales
+  saleController.getCustomerOutstandingSales,
 );
-// fetch router
-router.get(
-  "/:saleId",
-  verifyToken,
-  checkPermission("Sale", "canView"),
-  saleController.fetchSale
-);
+
+// // fetch router
+// router.get(
+//   "/:saleId",
+//   verifyToken,
+//   checkPermission("Sale", "canView"),
+//   saleController.fetchSale,
+// );
 
 // delete router
 router.delete(
   "/:saleId",
   verifyToken,
   checkPermission("Sale", "canDelete"),
-  saleController.deleteSale
+  saleController.deleteSale,
 );
 
 module.exports = router;

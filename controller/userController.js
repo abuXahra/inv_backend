@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const logActivity = require("../utils/activityLogger");
 
 exports.userUpdate = async (req, res) => {
   try {
@@ -11,8 +12,23 @@ exports.userUpdate = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.params.userId,
       { $set: req.body },
-      { new: true }
+      { new: true },
     );
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "User",
+      documentId: updatedUser._id,
+      description: `User "${updatedUser.username}" updated`,
+      newData: {
+        title: updatedUser.username,
+        code: "",
+        status: "",
+      },
+    });
+
     res.status(200).json(updatedUser);
   } catch (err) {
     res.status(500).json(err);
@@ -47,6 +63,16 @@ exports.userDelete = async (req, res) => {
 
     // Find user and delete it
     const user = await User.findByIdAndDelete(userId);
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "User",
+      documentId: user._id,
+      description: `User "${user.username}" deleted`,
+      newData: null,
+    });
 
     return res.status(200).json({ user, message: "User deleted successfully" });
   } catch (error) {

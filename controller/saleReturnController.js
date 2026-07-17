@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const SalesReturn = require("../models/SaleReturn");
 const Sale = require("../models/Sale");
 const Product = require("../models/Product");
+const logActivity = require("../utils/activityLogger");
 
 // Helper: Generate Code
 const generateReturnCode = async (prefix) => {
@@ -51,7 +52,7 @@ exports.salesReturnRegister = async (req, res) => {
     // 2️⃣ Validate return items
     for (const item of returnItems) {
       const soldItem = sale.saleItems.find(
-        (si) => si.productId.toString() === item.productId
+        (si) => si.productId.toString() === item.productId,
       );
 
       if (!soldItem) {
@@ -106,6 +107,20 @@ exports.salesReturnRegister = async (req, res) => {
 
     await newReturn.save();
 
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "ADD",
+      module: "Sale Return",
+      documentId: newReturn._id,
+      description: `Sale return "${newReturn.code}" created`,
+      newData: {
+        title: newReturn.code,
+        code: newReturn.code,
+        status: "",
+      },
+    });
+
     // 6️⃣ Update stock
     for (const item of cleanedItems) {
       await Product.findByIdAndUpdate(
@@ -117,14 +132,14 @@ exports.salesReturnRegister = async (req, res) => {
             stockQuantity: item.quantity,
           }, // reduce sold
         },
-        { new: true }
+        { new: true },
       );
     }
 
     // Update Sale.saleItems quantities
     sale.saleItems = sale.saleItems.map((si) => {
       const returnedItem = cleanedItems.find(
-        (ri) => ri.productId.toString() === si.productId.toString()
+        (ri) => ri.productId.toString() === si.productId.toString(),
       );
       if (returnedItem) {
         return {
@@ -221,7 +236,7 @@ exports.updateSalesReturn = async (req, res) => {
             stockQuantity: -oldItem.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -232,7 +247,7 @@ exports.updateSalesReturn = async (req, res) => {
 
     sale.saleItems = sale.saleItems.map((si) => {
       const oldReturned = salesReturn.returnItems.find(
-        (ri) => ri.productId.toString() === si.productId.toString()
+        (ri) => ri.productId.toString() === si.productId.toString(),
       );
       if (oldReturned) {
         return {
@@ -248,7 +263,7 @@ exports.updateSalesReturn = async (req, res) => {
     // Validate new return items
     for (const item of returnItems) {
       const soldItem = sale.saleItems.find(
-        (si) => si.productId.toString() === item.productId
+        (si) => si.productId.toString() === item.productId,
       );
       if (!soldItem)
         return res
@@ -272,14 +287,14 @@ exports.updateSalesReturn = async (req, res) => {
             stockQuantity: item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
     // Apply new sale.saleItems quantities
     sale.saleItems = sale.saleItems.map((si) => {
       const newReturned = returnItems.find(
-        (ri) => ri.productId.toString() === si.productId.toString()
+        (ri) => ri.productId.toString() === si.productId.toString(),
       );
       if (newReturned) {
         return {
@@ -313,6 +328,20 @@ exports.updateSalesReturn = async (req, res) => {
 
     await salesReturn.save();
 
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "UPDATE",
+      module: "Sale Return",
+      documentId: salesReturn._id,
+      description: `Sale return "${salesReturn.code}" updated`,
+      newData: {
+        title: salesReturn.code,
+        code: salesReturn.code,
+        status: "",
+      },
+    });
+
     res.status(200).json({
       message: "Sales return updated successfully",
       return: salesReturn,
@@ -325,7 +354,6 @@ exports.updateSalesReturn = async (req, res) => {
   }
 };
 
-// // 📌 Update Sales Return
 // exports.updateSalesReturn = async (req, res) => {
 //   try {
 //     const { returnId } = req.params;
@@ -462,7 +490,7 @@ exports.deleteSalesReturn = async (req, res) => {
             stockQuantity: -item.quantity,
           },
         },
-        { new: true }
+        { new: true },
       );
     }
 
@@ -471,7 +499,7 @@ exports.deleteSalesReturn = async (req, res) => {
     if (sale) {
       sale.saleItems = sale.saleItems.map((si) => {
         const returnedItem = salesReturn.returnItems.find(
-          (ri) => ri.productId.toString() === si.productId.toString()
+          (ri) => ri.productId.toString() === si.productId.toString(),
         );
 
         if (returnedItem) {
@@ -486,6 +514,16 @@ exports.deleteSalesReturn = async (req, res) => {
     }
 
     await salesReturn.deleteOne();
+
+    // Activity log
+    await logActivity({
+      user: req.user,
+      action: "DELETE",
+      module: "Sale Return",
+      documentId: salesReturn._id,
+      description: `Deleted a sale return "${salesReturn.code}"`,
+      newData: null,
+    });
 
     res.status(200).json({ message: "Sales return deleted and sale restored" });
   } catch (error) {
@@ -511,6 +549,12 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
     const salesReturns = await SalesReturn.find({ _id: { $in: ids } });
 
     for (const salesReturn of salesReturns) {
+      const returnId = salesReturn._id;
+
+      // 🔹 Snapshot for activity log
+      const oldReturnData = salesReturn.toObject();
+      const returnCode = salesReturn.code;
+
       // Rollback product stock
       for (const item of salesReturn.returnItems) {
         await Product.findByIdAndUpdate(
@@ -522,7 +566,7 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
               stockQuantity: -item.quantity,
             },
           },
-          { new: true }
+          { new: true },
         );
       }
 
@@ -531,7 +575,7 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
       if (sale) {
         sale.saleItems = sale.saleItems.map((si) => {
           const returnedItem = salesReturn.returnItems.find(
-            (ri) => ri.productId.toString() === si.productId.toString()
+            (ri) => ri.productId.toString() === si.productId.toString(),
           );
 
           if (returnedItem) {
@@ -546,6 +590,21 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
       }
 
       await salesReturn.deleteOne();
+
+      // 3️⃣ Activity Log
+      await logActivity({
+        user: req.user,
+        action: "DELETE",
+        module: "Sale Return",
+        documentId: returnId,
+        description: `Sale return (${returnCode}) deleted via bulk delete`,
+        oldData: oldReturnData,
+        newData: {
+          title: returnCode,
+          code: returnCode,
+          status: "",
+        },
+      });
     }
 
     res
@@ -558,97 +617,3 @@ exports.bulkDeleteSalesReturns = async (req, res) => {
       .json({ message: "Internal server error", error: error.message });
   }
 };
-
-// // 📌 Delete Sales Return
-// exports.deleteSalesReturn = async (req, res) => {
-//   try {
-//     const { returnId } = req.params;
-
-//     const salesReturn = await SalesReturn.findById(returnId);
-//     if (!salesReturn)
-//       return res.status(404).json({ message: "Sales return not found" });
-
-//     // Rollback stock (remove returned qty from stock)
-//     for (const item of salesReturn.returnItems) {
-//       await Product.findByIdAndUpdate(
-//         item.productId,
-//         {
-//           $inc: {
-//             saleReturnQuantity: -item.quantity,
-//             saleQuantity: item.quantity,
-//             stockQuantity: -item.quantity,
-//           }, // + added
-//         },
-//         { new: true }
-//       );
-//     }
-
-//     await salesReturn.deleteOne();
-
-//     res.status(200).json({ message: "Sales return deleted and sale restored" });
-//   } catch (error) {
-//     console.error("❌ Delete Sales Return Error:", error);
-//     res
-//       .status(500)
-//       .json({ message: "Internal server error", error: error.message });
-//   }
-// };
-
-// // 📌 Bulk Delete Sales Returns
-// exports.bulkDeleteSalesReturns = async (req, res) => {
-//   try {
-//     const { ids } = req.body; // array of return IDs
-//     if (!ids || !Array.isArray(ids) || ids.length === 0) {
-//       return res.status(400).json({ message: "No return IDs provided" });
-//     }
-
-//     const salesReturns = await SalesReturn.find({ _id: { $in: ids } });
-
-//     for (const salesReturn of salesReturns) {
-//       // 1️⃣ Rollback stock in Product
-//       for (const item of salesReturn.returnItems) {
-//         await Product.findByIdAndUpdate(
-//           item.productId,
-//           {
-//             $inc: {
-//               saleReturnQuantity: -item.quantity,
-//               saleQuantity: item.quantity,
-//               stockQuantity: -item.quantity,
-//             },
-//           },
-//           { new: true }
-//         );
-//       }
-
-//       // 2️⃣ Restore quantities back into original Sale.saleItems
-//       const sale = await Sale.findById(salesReturn.sale);
-//       if (sale) {
-//         sale.saleItems = sale.saleItems.map((si) => {
-//           const returnedItem = salesReturn.returnItems.find(
-//             (ri) => ri.productId.toString() === si.productId.toString()
-//           );
-//           if (returnedItem) {
-//             return {
-//               ...si.toObject(),
-//               quantity: si.quantity + returnedItem.quantity,
-//             };
-//           }
-//           return si;
-//         });
-//         await sale.save();
-//       }
-
-//       // 3️⃣ Delete the return
-//       await salesReturn.deleteOne();
-//     }
-
-//     res
-//       .status(200)
-//       .json({ message: "Selected sales returns deleted successfully" });
-//   } catch (error) {
-//     console.error("❌ Bulk Delete Sales Returns Error:", error);
-//     res
-//       .status(500)
-//       .json({ message: "Internal server error", error: error.message });
-//   }
-// };

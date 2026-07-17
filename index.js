@@ -27,6 +27,7 @@ const purchaseReturnRoute = require("./routes/purchaseReturn");
 const wastageRoute = require("./routes/wastage");
 const reportRoute = require("./routes/report");
 const permissionRoute = require("./routes/permission");
+const activityLogRoute = require("./routes/activityLog");
 
 const port = process.env.PORT || 5000;
 
@@ -40,14 +41,20 @@ const corsOptions = {
   credentials: true,
 };
 
-// middlewares
+// config
 dotenv.config();
 app.use(express.json());
 app.use("/images", express.static(path.join(__dirname, "images"))); //to allow uploaded image to be display
 app.use(cors(corsOptions)); //to syncronize front and backenth
 app.use(cookieParser());
 
-// ROUTES
+// =======================
+// ⏰ LOAD CRON JOBS (IMPORTANT)
+// =======================
+// ✅ This must be imported ONCE
+require("./cron/expirationAlert");
+
+// middleware
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/company", companyRoute);
@@ -66,6 +73,7 @@ app.use("/api/purchaseReturn", purchaseReturnRoute);
 app.use("/api/wastage", wastageRoute);
 app.use("/api/reports", reportRoute);
 app.use("/api/permission", permissionRoute);
+app.use("/api/activity", activityLogRoute);
 
 // Image upload route
 // const storage = multer.diskStorage({
@@ -99,7 +107,7 @@ const upload = multer({
     const filetypes = /jpeg|jpg|png|gif|webp/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(
-      path.extname(file.originalname).toLowerCase()
+      path.extname(file.originalname).toLowerCase(),
     );
 
     if (mimetype && extname) {
